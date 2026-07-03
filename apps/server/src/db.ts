@@ -1,5 +1,14 @@
 import Database from 'better-sqlite3';
-import { categoryOf, type Activity, type Checkin, type CheckinSource, type User, type WeeklyReport } from '@fitness/shared';
+import {
+  categoryOf,
+  type Activity,
+  type AdminUserSummary,
+  type Checkin,
+  type CheckinSource,
+  type CheckinWithUser,
+  type User,
+  type WeeklyReport,
+} from '@fitness/shared';
 import { env } from './env.js';
 
 export const db = new Database(env.databasePath);
@@ -104,6 +113,35 @@ export function usersWithFeishu(): User[] {
   return listUsers().filter((u) => u.feishuOpenId !== null);
 }
 
+/** 成员概览：打卡数 + 最后打卡日期 */
+export function userSummaries(): AdminUserSummary[] {
+  const rows = db
+    .prepare(
+      `SELECT u.id, u.name, u.feishu_open_id, COUNT(c.id) AS checkin_count, MAX(c.date) AS last_date
+       FROM users u LEFT JOIN checkins c ON c.user_id = u.id
+       GROUP BY u.id ORDER BY u.id ASC`
+    )
+    .all() as { id: number; name: string; feishu_open_id: string | null; checkin_count: number; last_date: string | null }[];
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    feishuOpenId: r.feishu_open_id,
+    checkinCount: r.checkin_count,
+    lastDate: r.last_date,
+  }));
+}
+
+export function countUsers(): number {
+  return (db.prepare(`SELECT COUNT(*) AS n FROM users`).get() as { n: number }).n;
+}
+
+/** 删除成员及其全部数据 */
+export const deleteUser = db.transaction((id: number): boolean => {
+  db.prepare(`DELETE FROM agent_reports WHERE user_id = ?`).run(id);
+  db.prepare(`DELETE FROM checkins WHERE user_id = ?`).run(id);
+  return db.prepare(`DELETE FROM users WHERE id = ?`).run(id).changes > 0;
+});
+
 /* ---------------- checkins ---------------- */
 
 interface CheckinRow {
@@ -175,6 +213,17 @@ export function listCheckins(userId: number, from: string, to: string): Checkin[
     )
     .all(userId, from, to) as CheckinRow[];
   return rows.map(mapCheckin);
+}
+
+/** 全部成员的最近打卡记录（带成员名），后台管理用 */
+export function listRecentCheckinsAll(limit: number): CheckinWithUser[] {
+  const rows = db
+    .prepare(
+      `SELECT c.*, u.name AS user_name FROM checkins c JOIN users u ON u.id = c.user_id
+       ORDER BY c.date DESC, c.created_at DESC LIMIT ?`
+    )
+    .all(limit) as (CheckinRow & { user_name: string })[];
+  return rows.map((r) => ({ ...mapCheckin(r), userName: r.user_name }));
 }
 
 /** 该用户全部打卡日期（去重、升序），供 streak 计算 */

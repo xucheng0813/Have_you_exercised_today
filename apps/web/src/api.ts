@@ -1,4 +1,13 @@
-import type { Checkin, NewCheckin, SetupStatus, Stats, User, WeeklyReport } from '@fitness/shared';
+import type {
+  AdminUserSummary,
+  Checkin,
+  CheckinWithUser,
+  NewCheckin,
+  SetupStatus,
+  Stats,
+  User,
+  WeeklyReport,
+} from '@fitness/shared';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -29,4 +38,11 @@ export const api = {
   saveFeishu: (appId: string, appSecret: string) =>
     request<{ ok: boolean }>('/api/setup/feishu', post({ appId, appSecret })),
   saveDeepseek: (apiKey: string) => request<{ ok: boolean }>('/api/setup/deepseek', post({ apiKey })),
+  adminUsers: () => request<AdminUserSummary[]>('/api/admin/users'),
+  adminCheckins: (limit = 30) => request<CheckinWithUser[]>(`/api/admin/checkins?limit=${limit}`),
+  renameUser: (id: number, name: string) =>
+    request<User>(`/api/users/${id}`, { ...post({ name }), method: 'PATCH' }),
+  deleteUser: (id: number) => request<{ ok: boolean }>(`/api/users/${id}`, { method: 'DELETE' }),
+  generateReport: (userId: number) =>
+    request<{ content: string | null }>(`/api/reports/generate?userId=${userId}`, { method: 'POST' }),
 };

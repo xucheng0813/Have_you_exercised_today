@@ -105,6 +105,18 @@ export interface ParsedCheckin {
   note: string | null;
 }
 
+/** 后台管理：成员概览（GET /api/admin/users） */
+export interface AdminUserSummary {
+  id: number;
+  name: string;
+  feishuOpenId: string | null;
+  checkinCount: number;
+  lastDate: string | null;
+}
+
+/** 后台管理：跨成员打卡记录 */
+export type CheckinWithUser = Checkin & { userName: string };
+
 /** 接入状态（GET /api/setup） */
 export interface SetupStatus {
   feishu: {

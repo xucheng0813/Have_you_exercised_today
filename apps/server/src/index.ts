@@ -7,13 +7,18 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import type { NewCheckin, SetupStatus } from '@fitness/shared';
 import { env } from './env.js';
 import {
+  countUsers,
   createUser,
   deleteCheckin,
+  deleteUser,
   getUser,
   insertCheckin,
   latestReport,
   listCheckins,
+  listRecentCheckinsAll,
   listUsers,
+  renameUser,
+  userSummaries,
   usersWithFeishu,
 } from './db.js';
 import { computeStats } from './stats.js';
@@ -38,6 +43,31 @@ app.post('/api/users', async (c) => {
   const name = body?.name?.trim().slice(0, 20);
   if (!name) return c.json({ error: 'name 不能为空' }, 400);
   return c.json(createUser(name), 201);
+});
+
+app.patch('/api/users/:id', async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isInteger(id) || !getUser(id)) return c.json({ error: '用户不存在' }, 404);
+  const body = (await c.req.json().catch(() => null)) as { name?: string } | null;
+  const name = body?.name?.trim().slice(0, 20);
+  if (!name) return c.json({ error: 'name 不能为空' }, 400);
+  renameUser(id, name);
+  return c.json(getUser(id));
+});
+
+app.delete('/api/users/:id', (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isInteger(id) || !getUser(id)) return c.json({ error: '用户不存在' }, 404);
+  if (countUsers() <= 1) return c.json({ error: '至少保留一位成员' }, 400);
+  deleteUser(id);
+  return c.json({ ok: true });
+});
+
+app.get('/api/admin/users', (c) => c.json(userSummaries()));
+
+app.get('/api/admin/checkins', (c) => {
+  const limit = Math.min(200, Math.max(1, Number(c.req.query('limit') ?? 30)));
+  return c.json(listRecentCheckinsAll(Number.isNaN(limit) ? 30 : limit));
 });
 
 app.get('/api/stats', (c) => {

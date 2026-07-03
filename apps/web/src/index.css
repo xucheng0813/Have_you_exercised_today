@@ -51,6 +51,8 @@ button { font: inherit; cursor: pointer; }
 }
 .top-right { display: flex; align-items: center; gap: 14px; }
 .top-date { font-size: 13px; color: var(--muted); }
+.brand-sub { color: var(--muted); font-weight: 400; margin-left: 6px; }
+.nav-link { font-size: 13px; color: var(--blue); text-decoration: none; letter-spacing: -0.12px; }
 .user-select {
   background: var(--white); color: var(--ink); border: 1px solid var(--hairline); border-radius: 8px;
   font: inherit; font-size: 13px; padding: 5px 10px; letter-spacing: -0.12px; cursor: pointer;
@@ -203,6 +205,31 @@ button { font: inherit; cursor: pointer; }
 .connect-head-right { display: flex; align-items: center; gap: 10px; }
 
 .foot { font-size: 12px; color: var(--muted); text-align: center; letter-spacing: -0.12px; padding: 24px 0 0; }
+
+/* ---------- 后台管理 ---------- */
+.table-scroll { overflow-x: auto; }
+.admin-table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.admin-table th {
+  text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: -0.12px;
+  padding: 6px 10px; border-bottom: 1px solid var(--hairline); white-space: nowrap;
+}
+.admin-table td { padding: 10px; border-bottom: 1px solid var(--divider); vertical-align: middle; }
+.admin-table tr:last-child td { border-bottom: none; }
+.t-name { font-weight: 600; letter-spacing: -0.224px; }
+.t-num { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+.t-actions { text-align: right; white-space: nowrap; }
+.t-actions .text-btn { margin-left: 6px; }
+.text-btn.danger { color: #d30005; }
+.text-btn:disabled { color: var(--muted); cursor: default; }
+
+.report-list { list-style: none; margin: 0; padding: 0; }
+.report-list li {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0; border-bottom: 1px solid var(--divider); font-size: 14px;
+}
+.report-list li:last-child { border-bottom: none; }
+
+.r-user { font-size: 12px; color: var(--muted); background: var(--parchment); border-radius: 5px; padding: 1px 8px; flex-shrink: 0; }
 
 /* ---------- 补卡弹窗 ---------- */
 .modal-backdrop {

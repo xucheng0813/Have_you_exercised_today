@@ -7,9 +7,19 @@ import { ActivityRings } from './components/ActivityRings';
 import { Heatmap } from './components/Heatmap';
 import { WeekBars } from './components/WeekBars';
 import { CheckinDialog } from './components/CheckinDialog';
-import { ConnectSection } from './components/ConnectSection';
+import { AdminPage } from './AdminPage';
 
 const USER_KEY = 'fitness.userId';
+
+function useHashRoute(): string {
+  const [hash, setHash] = useState(window.location.hash);
+  useEffect(() => {
+    const onChange = () => setHash(window.location.hash);
+    window.addEventListener('hashchange', onChange);
+    return () => window.removeEventListener('hashchange', onChange);
+  }, []);
+  return hash;
+}
 
 function UserPicker({ users, userId, onChange }: { users: User[]; userId: number; onChange: (id: number) => void }) {
   const queryClient = useQueryClient();
@@ -217,6 +227,8 @@ function RecentCard({ checkins, userId, onBackfill }: { checkins: Checkin[]; use
 }
 
 export function App() {
+  const route = useHashRoute();
+  const isAdmin = route === '#/admin';
   const [dialogOpen, setDialogOpen] = useState(false);
   const [userId, setUserIdState] = useState(() => Number(localStorage.getItem(USER_KEY) ?? 1));
   const setUserId = (id: number) => {
@@ -235,33 +247,46 @@ export function App() {
     queryKey: ['stats', userId],
     queryFn: () => api.stats(userId),
     refetchInterval: 60_000,
+    enabled: !isAdmin,
   });
   const { data: checkins } = useQuery({
     queryKey: ['checkins', userId],
     queryFn: () => api.checkins(userId, addDays(today, -18 * 7), today),
     refetchInterval: 60_000,
+    enabled: !isAdmin,
   });
 
   return (
     <div className="shell">
       <header className="topbar">
-        <span className="brand"><span className="brand-mark">练</span>今天练了吗</span>
+        <span className="brand">
+          <span className="brand-mark">练</span>今天练了吗
+          {isAdmin && <span className="brand-sub">· 后台管理</span>}
+        </span>
         <div className="top-right">
-          <span className="top-date">{prettyDate(today)} 周{weekdayLabel(today)}</span>
-          {users && users.length > 0 && <UserPicker users={users} userId={userId} onChange={setUserId} />}
+          {isAdmin ? (
+            <a className="nav-link" href="#/">← 返回仪表盘</a>
+          ) : (
+            <>
+              <span className="top-date">{prettyDate(today)} 周{weekdayLabel(today)}</span>
+              {users && users.length > 0 && <UserPicker users={users} userId={userId} onChange={setUserId} />}
+              <a className="nav-link" href="#/admin" title="后台管理">管理</a>
+            </>
+          )}
         </div>
       </header>
-      <main className="grid">
-        <div className="g7">{stats && <TodayCard stats={stats} userId={userId} />}</div>
-        <div className="g5">{stats && <StatTiles stats={stats} />}</div>
-        <div className="g7"><Heatmap checkins={checkins ?? []} /></div>
-        <div className="g5">{stats && <WeekBars minutesByDay={stats.week.minutesByDay} />}</div>
-        <div className="g7"><RecentCard checkins={checkins ?? []} userId={userId} onBackfill={() => setDialogOpen(true)} /></div>
-        <div className="g5 col">
-          <CoachCard userId={userId} />
-          <ConnectSection />
-        </div>
-      </main>
+      {isAdmin ? (
+        <AdminPage />
+      ) : (
+        <main className="grid">
+          <div className="g7">{stats && <TodayCard stats={stats} userId={userId} />}</div>
+          <div className="g5">{stats && <StatTiles stats={stats} />}</div>
+          <div className="g7"><Heatmap checkins={checkins ?? []} /></div>
+          <div className="g5">{stats && <WeekBars minutesByDay={stats.week.minutesByDay} />}</div>
+          <div className="g7"><RecentCard checkins={checkins ?? []} userId={userId} onBackfill={() => setDialogOpen(true)} /></div>
+          <div className="g5"><CoachCard userId={userId} /></div>
+        </main>
+      )}
       <footer className="foot">数据存储于本地 SQLite · 打卡消息由 DeepSeek 解析 · 每日 21:00 未打卡飞书提醒</footer>
       {dialogOpen && <CheckinDialog userId={userId} onClose={() => setDialogOpen(false)} />}
     </div>
