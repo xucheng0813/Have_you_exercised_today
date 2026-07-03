@@ -1,7 +1,7 @@
 import * as Lark from '@larksuiteoapi/node-sdk';
-import { categoryOf } from '@fitness/shared';
+import { categoryOf, type FeishuCheck } from '@fitness/shared';
 import { env } from '../env.js';
-import { getOrCreateUserByOpenId, getSetting, insertCheckin, renameUser, setSetting } from '../db.js';
+import { getOrCreateUserByOpenId, getSetting, insertCheckin, renameUser, setSetting, usersWithFeishu } from '../db.js';
 import { computeStats } from '../stats.js';
 import { todayStr } from '../dates.js';
 import { parseCheckinMessage } from '../agent/deepseek.js';
@@ -36,15 +36,60 @@ export function isFeishuRunning(): boolean {
   return running;
 }
 
-/** 校验凭证（直接找飞书换 tenant_access_token），失败时返回错误信息 */
-export async function verifyFeishuCredentials(creds: FeishuCredentials): Promise<string | null> {
+/** 用凭证换 tenant_access_token */
+async function fetchTenantToken(creds: FeishuCredentials): Promise<{ token: string | null; error: string | null }> {
   const res = await fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ app_id: creds.appId, app_secret: creds.appSecret }),
   });
-  const body = (await res.json()) as { code: number; msg: string };
-  return body.code === 0 ? null : `飞书校验失败：${body.msg}（code ${body.code}）`;
+  const body = (await res.json()) as { code: number; msg: string; tenant_access_token?: string };
+  if (body.code !== 0) return { token: null, error: `飞书校验失败：${body.msg}（code ${body.code}）` };
+  return { token: body.tenant_access_token ?? null, error: null };
+}
+
+/** 校验凭证，失败时返回错误信息 */
+export async function verifyFeishuCredentials(creds: FeishuCredentials): Promise<string | null> {
+  return (await fetchTenantToken(creds)).error;
+}
+
+/** 连接自检：凭证 → 机器人能力 → 长连接状态 → 已加入人数 */
+export async function diagnoseFeishu(): Promise<FeishuCheck> {
+  const result: FeishuCheck = {
+    configured: false,
+    credentialsValid: false,
+    credentialsError: null,
+    botName: null,
+    botError: null,
+    wsState: 'not_started',
+    boundUsers: usersWithFeishu().length,
+  };
+  const creds = feishuCredentials();
+  if (!creds) return result;
+  result.configured = true;
+
+  const { token, error } = await fetchTenantToken(creds);
+  result.credentialsValid = token !== null;
+  result.credentialsError = error;
+
+  if (token) {
+    try {
+      const res = await fetch('https://open.feishu.cn/open-apis/bot/v3/info', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = (await res.json()) as { code: number; msg: string; bot?: { app_name?: string } };
+      if (body.code === 0 && body.bot?.app_name) {
+        result.botName = body.bot.app_name;
+      } else {
+        result.botError = `拉取机器人信息失败：${body.msg}（code ${body.code}）——检查应用是否开启了「机器人」能力`;
+      }
+    } catch (err) {
+      result.botError = String(err);
+    }
+  }
+
+  result.wsState = wsClient ? wsClient.getConnectionStatus().state : 'not_started';
+  return result;
 }
 
 /** 网页提交凭证：校验 → 存库 → 重连长连接（首次配置和更换凭证都走这里） */

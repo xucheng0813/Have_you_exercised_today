@@ -2,6 +2,7 @@ import type {
   AdminUserSummary,
   Checkin,
   CheckinWithUser,
+  FeishuCheck,
   NewCheckin,
   SetupStatus,
   Stats,
@@ -38,6 +39,7 @@ export const api = {
   saveFeishu: (appId: string, appSecret: string) =>
     request<{ ok: boolean }>('/api/setup/feishu', post({ appId, appSecret })),
   saveDeepseek: (apiKey: string) => request<{ ok: boolean }>('/api/setup/deepseek', post({ apiKey })),
+  feishuCheck: () => request<FeishuCheck>('/api/setup/feishu/check'),
   adminUsers: () => request<AdminUserSummary[]>('/api/admin/users'),
   adminCheckins: (limit = 30) => request<CheckinWithUser[]>(`/api/admin/checkins?limit=${limit}`),
   renameUser: (id: number, name: string) =>

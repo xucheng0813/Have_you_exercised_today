@@ -117,6 +117,18 @@ export interface AdminUserSummary {
 /** 后台管理：跨成员打卡记录 */
 export type CheckinWithUser = Checkin & { userName: string };
 
+/** 飞书连接自检结果（GET /api/setup/feishu/check） */
+export interface FeishuCheck {
+  configured: boolean;
+  credentialsValid: boolean;
+  credentialsError: string | null;
+  /** 机器人名称；拉不到说明机器人能力未开启或权限不足 */
+  botName: string | null;
+  botError: string | null;
+  wsState: 'not_started' | 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed';
+  boundUsers: number;
+}
+
 /** 接入状态（GET /api/setup） */
 export interface SetupStatus {
   feishu: {

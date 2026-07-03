@@ -21,6 +21,67 @@ function FeishuQR({ appId }: { appId: string }) {
   return <img className="feishu-qr" src={src} alt="飞书机器人二维码" width={148} height={148} />;
 }
 
+const WS_STATE_LABEL: Record<string, { ok: boolean; text: string }> = {
+  connected: { ok: true, text: '长连接在线，能实时收到消息' },
+  connecting: { ok: false, text: '长连接正在建立…稍等几秒再检查一次' },
+  reconnecting: { ok: false, text: '长连接反复重连——去开发者后台确认「事件与回调 → 订阅方式」选了「使用长连接接收事件」' },
+  failed: { ok: false, text: '长连接失败——确认订阅方式选了「长连接」，且应用类型为企业自建应用' },
+  idle: { ok: false, text: '长连接未建立——确认订阅方式选了「长连接」' },
+  not_started: { ok: false, text: '长连接未启动——保存凭证后自动启动' },
+};
+
+function CheckItem({ ok, label, detail }: { ok: boolean; label: string; detail?: string | null }) {
+  return (
+    <li className={ok ? 'ok' : 'bad'}>
+      <span className="check-mark">{ok ? '✓' : '✕'}</span>
+      <span>
+        {label}
+        {detail && <em>{detail}</em>}
+      </span>
+    </li>
+  );
+}
+
+/** 逐项自检：凭证 → 机器人 → 长连接 → 成员加入 */
+function FeishuDiagnostics() {
+  const { data: check, refetch, isFetching } = useQuery({
+    queryKey: ['feishu-check'],
+    queryFn: api.feishuCheck,
+    enabled: false,
+  });
+  return (
+    <div className="feishu-check">
+      <button type="button" className="text-btn" onClick={() => void refetch()} disabled={isFetching}>
+        {isFetching ? '检查中…' : check ? '重新检查' : '扫码没反应？点这里自检'}
+      </button>
+      {check && (
+        <ul className="check-list">
+          <CheckItem ok={check.credentialsValid} label="应用凭证有效" detail={check.credentialsError} />
+          <CheckItem
+            ok={check.botName !== null}
+            label={check.botName ? `机器人「${check.botName}」能力已开启` : '机器人能力'}
+            detail={check.botError}
+          />
+          <CheckItem
+            ok={WS_STATE_LABEL[check.wsState]?.ok ?? false}
+            label="事件长连接"
+            detail={WS_STATE_LABEL[check.wsState]?.text}
+          />
+          <CheckItem
+            ok={check.boundUsers > 0}
+            label={check.boundUsers > 0 ? `已有 ${check.boundUsers} 人加入` : '还没有人成功发过消息'}
+            detail={
+              check.boundUsers === 0
+                ? '扫码打不开机器人会话 → 应用需在开发者后台「创建版本并发布」，可用范围要包含你；能打开但发消息无回应 → 事件订阅里要添加「接收消息 im.message.receive_v1」，并开通 im:message 相关权限后重新发布版本'
+                : null
+            }
+          />
+        </ul>
+      )}
+    </div>
+  );
+}
+
 /** 粘贴 DeepSeek key，保存即校验并生效（存本地 SQLite） */
 function DeepseekSetupForm() {
   const queryClient = useQueryClient();
@@ -129,6 +190,7 @@ export function ConnectSection() {
                 每天 21:00 没打卡会提醒，周一早上推送各自的教练周报。
               </p>
               <FeishuQR appId={feishu.appId} />
+              <FeishuDiagnostics />
             </>
           ) : feishu.configured ? (
             <FeishuSetupForm initialAppId={feishu.appId ?? ''} onDone={() => setEditingFeishu(false)} />

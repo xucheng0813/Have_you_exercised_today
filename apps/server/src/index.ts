@@ -24,7 +24,7 @@ import {
 import { computeStats } from './stats.js';
 import { addDays, isValidDateStr, todayStr } from './dates.js';
 import { deepseekEnabled, deepseekModel, saveDeepseekKey } from './agent/deepseek.js';
-import { feishuCredentials, saveFeishuCredentials, startFeishu } from './feishu/index.js';
+import { diagnoseFeishu, feishuCredentials, saveFeishuCredentials, startFeishu } from './feishu/index.js';
 import { runWeeklyReport, startJobs } from './jobs.js';
 
 const app = new Hono();
@@ -160,6 +160,9 @@ app.post('/api/setup/feishu', async (c) => {
   if (error) return c.json({ error }, 400);
   return c.json({ ok: true });
 });
+
+// 飞书连接自检：凭证 / 机器人能力 / 长连接状态逐项检查
+app.get('/api/setup/feishu/check', async (c) => c.json(await diagnoseFeishu()));
 
 // 网页粘贴 DeepSeek key：校验 → 存 SQLite，立即生效
 app.post('/api/setup/deepseek', async (c) => {
