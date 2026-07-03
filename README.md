@@ -27,6 +27,21 @@ npm run dev:web        # 前端 :5173（/api 代理到 :3000）
 
 不配置任何 key 也能跑：网页手动打卡 + 全部统计可用；飞书和 AI 功能自动跳过。
 
+## Docker 部署
+
+```bash
+docker compose up -d --build   # http://localhost:3000
+```
+
+或者不用 compose：
+
+```bash
+docker build -t fitness-checkin .
+docker run -d -p 3000:3000 -v fitness-data:/data --name fitness fitness-checkin
+```
+
+打卡数据和飞书/DeepSeek 凭证都存在 `/data` 卷的 SQLite 里——凭证在网页「管理 → 接入」里粘贴即可，重建容器不丢；备份只需拷 `/data`。时区默认 `Asia/Shanghai`（影响打卡日期和 21:00 提醒），可用环境变量 `TZ` 覆盖。
+
 ## 飞书接入
 
 1. 在[飞书开放平台](https://open.feishu.cn)创建**企业自建应用**，拿到 App ID / App Secret 填入 `.env`

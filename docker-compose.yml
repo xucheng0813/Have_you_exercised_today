@@ -1,0 +1,21 @@
+services:
+  fitness:
+    build: .
+    container_name: have-you-exercised-today
+    ports:
+      - "3000:3000"
+    volumes:
+      - fitness-data:/data
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      # 以下均可不填：首次启动后在网页「管理 → 接入」里粘贴，
+      # 凭证存进 /data 卷的 SQLite，重建容器不丢
+      # FEISHU_APP_ID: cli_xxx
+      # FEISHU_APP_SECRET: xxx
+      # DEEPSEEK_API_KEY: sk-xxx
+      # REMIND_CRON: "0 21 * * *"
+      # REPORT_CRON: "0 9 * * 1"
+
+volumes:
+  fitness-data:
