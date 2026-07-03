@@ -33,9 +33,11 @@ export function Heatmap({ checkins }: { checkins: Checkin[] }) {
   }, [checkins]);
 
   return (
-    <div className="panel">
-      <p className="p-title">打卡热力图</p>
-      <p className="p-hint">近 {WEEKS} 周</p>
+    <div className="card">
+      <div className="card-head">
+        <p className="card-title">打卡热力图</p>
+        <span className="card-hint">近 {WEEKS} 周</span>
+      </div>
       <div className="heatmap-scroll">
         <div className="heatmap" role="img" aria-label={`近${WEEKS}周每日打卡热力图`}>
           {cells.map((c) => (

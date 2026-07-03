@@ -36,12 +36,10 @@ export function ConnectSection() {
   const { feishu, deepseek } = setup;
 
   return (
-    <div className="sect parchment">
-      <div className="sect-head"><h2>接入</h2></div>
-      <div className="panel-grid connect-grid">
-        <div className="panel connect-card">
+    <>
+      <div className="card connect-card">
           <div className="connect-head">
-            <p className="p-title">飞书机器人</p>
+            <p className="card-title">飞书机器人</p>
             {feishu.boundUsers > 0 ? (
               <StatusChip tone="ok">{`已连接 · ${feishu.boundUsers} 人`}</StatusChip>
             ) : feishu.configured ? (
@@ -64,10 +62,10 @@ export function ConnectSection() {
               把 App ID / Secret 填入 .env 后重启服务，这里就会出现绑定二维码。
             </p>
           )}
-        </div>
-        <div className="panel connect-card">
+      </div>
+      <div className="card connect-card">
           <div className="connect-head">
-            <p className="p-title">DeepSeek</p>
+            <p className="card-title">DeepSeek</p>
             {deepseek.configured ? (
               <StatusChip tone="ok">已启用</StatusChip>
             ) : (
@@ -85,8 +83,7 @@ export function ConnectSection() {
               后，任意运动都能识别，并解锁每周 AI 教练点评。
             </p>
           )}
-        </div>
       </div>
-    </div>
+    </>
   );
 }

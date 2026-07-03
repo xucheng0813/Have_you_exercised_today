@@ -29,7 +29,7 @@ function Ring({ r, width, progress, color }: { r: number; width: number; progres
   );
 }
 
-export function ActivityRings({ stats }: { stats: Stats }) {
+export function ActivityRings({ stats, size = 188 }: { stats: Stats; size?: number }) {
   const todayMinutes = stats.today.checkins.reduce((s, c) => s + (c.durationMin ?? 0), 0);
   const streakCapped = Math.min(stats.streak, STREAK_GOAL_DAYS);
 
@@ -53,7 +53,7 @@ export function ActivityRings({ stats }: { stats: Stats }) {
 
   return (
     <div className="rings">
-      <svg viewBox="0 0 200 200" width="188" height="188" role="img"
+      <svg viewBox="0 0 200 200" width={size} height={size} role="img"
         aria-label={rings.map((r) => r.label).join('，')}>
         <Ring r={84} width={17} progress={rings[0]!.progress} color={rings[0]!.color} />
         <Ring r={63} width={17} progress={rings[1]!.progress} color={rings[1]!.color} />

@@ -34,7 +34,7 @@ export function CheckinDialog({ userId, onClose }: { userId: number; onClose: ()
   return (
     <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <form className="modal" onSubmit={submit}>
-        <h3>手动打卡</h3>
+        <h3>补卡</h3>
         <div className="field">
           <label htmlFor="ck-date">日期</label>
           <input id="ck-date" type="date" value={date} max={todayStr()} required
@@ -42,9 +42,9 @@ export function CheckinDialog({ userId, onClose }: { userId: number; onClose: ()
         </div>
         <div className="field">
           <label htmlFor="ck-activity">运动（可自由填写）</label>
-          <input id="ck-activity" list="activity-suggestions" value={activity} required maxLength={16}
+          <input id="ck-activity" list="activity-suggestions-dialog" value={activity} required maxLength={16}
             placeholder="跑步 / 攀岩 / 跳绳…" onChange={(e) => setActivity(e.target.value)} />
-          <datalist id="activity-suggestions">
+          <datalist id="activity-suggestions-dialog">
             {SUGGESTED_ACTIVITIES.map((a) => (
               <option key={a} value={a} />
             ))}

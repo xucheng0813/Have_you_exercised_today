@@ -7,9 +7,11 @@ export function WeekBars({ minutesByDay }: { minutesByDay: number[] }) {
   const todayIdx = dow === 0 ? 6 : dow - 1;
 
   return (
-    <div className="panel">
-      <p className="p-title">本周</p>
-      <p className="p-hint">分钟 / 天</p>
+    <div className="card">
+      <div className="card-head">
+        <p className="card-title">本周</p>
+        <span className="card-hint">分钟 / 天</span>
+      </div>
       <div className="bars">
         {minutesByDay.map((min, i) => (
           <div key={i} className={`bar-g${i === todayIdx ? ' today' : ''}`}>
