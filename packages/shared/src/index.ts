@@ -40,6 +40,13 @@ export function categoryOf(activity: Activity): ActivityCategory {
 
 export type CheckinSource = 'feishu' | 'web';
 
+export interface User {
+  id: number;
+  name: string;
+  /** 绑定的飞书 open_id，网页手动创建的用户为 null */
+  feishuOpenId: string | null;
+}
+
 export interface Checkin {
   id: number;
   userId: number;
@@ -102,7 +109,8 @@ export interface ParsedCheckin {
 export interface SetupStatus {
   feishu: {
     configured: boolean;
-    bound: boolean;
+    /** 已通过飞书加入的用户数 */
+    boundUsers: number;
     appId: string | null;
   };
   deepseek: {

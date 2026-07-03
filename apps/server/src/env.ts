@@ -1,4 +1,9 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'node:url';
+
+// 先读运行目录的 .env，再补仓库根目录的 .env（已存在的变量不会被覆盖）
+dotenv.config();
+dotenv.config({ path: fileURLToPath(new URL('../../../.env', import.meta.url)) });
 
 export const env = {
   port: Number(process.env.PORT ?? 3000),

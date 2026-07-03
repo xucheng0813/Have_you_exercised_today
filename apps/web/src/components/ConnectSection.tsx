@@ -28,7 +28,7 @@ export function ConnectSection() {
     // 待扫码时轮询，扫完自动翻到「已连接」
     refetchInterval: (q) => {
       const s = q.state.data;
-      return s?.feishu.configured && !s.feishu.bound ? 5_000 : 60_000;
+      return s?.feishu.configured && s.feishu.boundUsers === 0 ? 5_000 : 60_000;
     },
   });
   if (!setup) return null;
@@ -42,22 +42,20 @@ export function ConnectSection() {
         <div className="panel connect-card">
           <div className="connect-head">
             <p className="p-title">飞书机器人</p>
-            {feishu.bound ? (
-              <StatusChip tone="ok">已连接</StatusChip>
+            {feishu.boundUsers > 0 ? (
+              <StatusChip tone="ok">{`已连接 · ${feishu.boundUsers} 人`}</StatusChip>
             ) : feishu.configured ? (
               <StatusChip tone="wait">待扫码</StatusChip>
             ) : (
               <StatusChip tone="off">未配置</StatusChip>
             )}
           </div>
-          {feishu.bound ? (
-            <p className="connect-text">
-              绑定完成。直接在飞书里发一句「打卡 跑步 30 分钟」，DeepSeek 会自动识别；
-              每天 21:00 没打卡会提醒你，周一早上推送教练周报。
-            </p>
-          ) : feishu.configured && feishu.appId ? (
+          {feishu.configured && feishu.appId ? (
             <>
-              <p className="connect-text">用飞书「扫一扫」打开机器人，随便发一句话即自动完成绑定。</p>
+              <p className="connect-text">
+                用飞书「扫一扫」打开机器人，发一句话即自动加入——每个扫码的人都有自己的打卡档案；
+                每天 21:00 没打卡会提醒，周一早上推送各自的教练周报。
+              </p>
               <FeishuQR appId={feishu.appId} />
             </>
           ) : (

@@ -1,7 +1,7 @@
 import * as Lark from '@larksuiteoapi/node-sdk';
 import { categoryOf } from '@fitness/shared';
 import { env } from '../env.js';
-import { bindFeishuOpenId, getUserFeishuOpenId, insertCheckin } from '../db.js';
+import { getOrCreateUserByOpenId, insertCheckin, renameUser } from '../db.js';
 import { computeStats } from '../stats.js';
 import { todayStr } from '../dates.js';
 import { parseCheckinMessage } from '../agent/deepseek.js';
@@ -9,17 +9,16 @@ import { parseCheckinMessage } from '../agent/deepseek.js';
 const HELP_TEXT = [
   '我是健身打卡助手，直接把今天的运动发给我就行，比如：',
   '「打卡 晚上跑了5公里 35分钟」',
-  '「健身房练腿 1小时」',
+  '「攀岩1小时」——练什么都认得。',
   '休息日回「休息」可以保住连续记录。',
   '发「统计」查看当前数据。',
 ].join('\n');
 
 let client: Lark.Client | null = null;
 
-/** 主动给绑定用户发消息（提醒、周报用） */
-export async function sendTextToUser(text: string): Promise<boolean> {
-  const openId = getUserFeishuOpenId();
-  if (!client || !openId) return false;
+/** 主动给某个飞书用户发消息（提醒、周报用） */
+export async function sendTextToOpenId(openId: string, text: string): Promise<boolean> {
+  if (!client) return false;
   await client.im.message.create({
     params: { receive_id_type: 'open_id' },
     data: { receive_id: openId, msg_type: 'text', content: JSON.stringify({ text }) },
@@ -27,8 +26,21 @@ export async function sendTextToUser(text: string): Promise<boolean> {
   return true;
 }
 
-function statsSummary(): string {
-  const s = computeStats();
+/** 尽力从飞书拉真实姓名（需要通讯录权限；没有就返回 null，用兜底名） */
+async function fetchFeishuName(openId: string): Promise<string | null> {
+  try {
+    const res = await client!.contact.user.get({
+      path: { user_id: openId },
+      params: { user_id_type: 'open_id' },
+    });
+    return res.data?.user?.name ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function statsSummary(userId: number): string {
+  const s = computeStats(userId);
   const todayLine = s.today.checked
     ? `今天已打卡：${s.today.checkins.map((c) => c.activity + (c.durationMin ? ` ${c.durationMin}分钟` : '')).join('、')}`
     : '今天还没打卡';
@@ -64,14 +76,14 @@ async function handleMessage(data: {
       data: { msg_type: 'text', content: JSON.stringify({ text: t }) },
     });
 
-  // 单用户应用：第一个私聊的人自动绑定，其他人礼貌拒绝
-  const bound = getUserFeishuOpenId();
-  if (!bound) {
-    bindFeishuOpenId(openId);
-    console.log(`[feishu] 已绑定用户 open_id=${openId}`);
-  } else if (bound !== openId) {
-    await reply('这是一个私人打卡机器人，已经绑定了主人啦。');
-    return;
+  // 多用户：每个发消息的人自动建档；兜底名尽力换成飞书真实姓名
+  const user = getOrCreateUserByOpenId(openId);
+  if (user.name.startsWith('健友')) {
+    const realName = await fetchFeishuName(openId);
+    if (realName) {
+      renameUser(user.id, realName);
+      user.name = realName;
+    }
   }
 
   if (/^(帮助|help|\?|？)$/i.test(text)) {
@@ -79,7 +91,7 @@ async function handleMessage(data: {
     return;
   }
   if (/^(统计|查询|数据)$/.test(text)) {
-    await reply(statsSummary());
+    await reply(statsSummary(user.id));
     return;
   }
 
@@ -90,6 +102,7 @@ async function handleMessage(data: {
   }
 
   insertCheckin({
+    userId: user.id,
     date: todayStr(),
     activity: parsed.activity,
     durationMin: parsed.durationMin,
@@ -98,7 +111,7 @@ async function handleMessage(data: {
     rawMessage: text,
   });
 
-  const s = computeStats();
+  const s = computeStats(user.id);
   if (categoryOf(parsed.activity) === 'rest') {
     await reply(`😌 已记录休息日，连续记录保住了（${s.streak} 天）。好好恢复！`);
     return;

@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { categoryOf, type Activity, type Checkin, type CheckinSource, type WeeklyReport } from '@fitness/shared';
+import { categoryOf, type Activity, type Checkin, type CheckinSource, type User, type WeeklyReport } from '@fitness/shared';
 import { env } from './env.js';
 
 export const db = new Database(env.databasePath);
@@ -37,9 +37,57 @@ db.exec(`
   );
 `);
 
-/** 单用户应用：保证 id=1 的默认用户存在 */
+/** 保证 id=1 的默认用户存在（网页端无飞书时也能用） */
 db.prepare(`INSERT OR IGNORE INTO users (id, name) VALUES (1, ?)`).run(env.userName);
-export const DEFAULT_USER_ID = 1;
+
+/* ---------------- users ---------------- */
+
+interface UserRow {
+  id: number;
+  feishu_open_id: string | null;
+  name: string;
+}
+
+function mapUser(r: UserRow): User {
+  return { id: r.id, name: r.name, feishuOpenId: r.feishu_open_id };
+}
+
+export function listUsers(): User[] {
+  const rows = db.prepare(`SELECT id, feishu_open_id, name FROM users ORDER BY id ASC`).all() as UserRow[];
+  return rows.map(mapUser);
+}
+
+export function getUser(id: number): User | null {
+  const row = db.prepare(`SELECT id, feishu_open_id, name FROM users WHERE id = ?`).get(id) as UserRow | undefined;
+  return row ? mapUser(row) : null;
+}
+
+export function createUser(name: string): User {
+  const info = db.prepare(`INSERT INTO users (name) VALUES (?)`).run(name);
+  return getUser(Number(info.lastInsertRowid))!;
+}
+
+export function renameUser(id: number, name: string): void {
+  db.prepare(`UPDATE users SET name = ? WHERE id = ?`).run(name, id);
+}
+
+/** 飞书用户首次发消息时自动建档 */
+export function getOrCreateUserByOpenId(openId: string, name?: string): User {
+  const row = db
+    .prepare(`SELECT id, feishu_open_id, name FROM users WHERE feishu_open_id = ?`)
+    .get(openId) as UserRow | undefined;
+  if (row) return mapUser(row);
+  const info = db
+    .prepare(`INSERT INTO users (feishu_open_id, name) VALUES (?, ?)`)
+    .run(openId, name ?? `健友${openId.slice(-4)}`);
+  return getUser(Number(info.lastInsertRowid))!;
+}
+
+export function usersWithFeishu(): User[] {
+  return listUsers().filter((u) => u.feishuOpenId !== null);
+}
+
+/* ---------------- checkins ---------------- */
 
 interface CheckinRow {
   id: number;
@@ -68,6 +116,7 @@ function mapCheckin(r: CheckinRow): Checkin {
 }
 
 export function insertCheckin(input: {
+  userId: number;
   date: string;
   activity: Activity;
   durationMin?: number | null;
@@ -81,7 +130,7 @@ export function insertCheckin(input: {
        VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
-      DEFAULT_USER_ID,
+      input.userId,
       input.date,
       input.activity,
       input.durationMin ?? null,
@@ -97,49 +146,40 @@ export function getCheckin(id: number): Checkin | null {
   return row ? mapCheckin(row) : null;
 }
 
-export function deleteCheckin(id: number): boolean {
-  return db.prepare(`DELETE FROM checkins WHERE id = ? AND user_id = ?`).run(id, DEFAULT_USER_ID).changes > 0;
+export function deleteCheckin(id: number, userId: number): boolean {
+  return db.prepare(`DELETE FROM checkins WHERE id = ? AND user_id = ?`).run(id, userId).changes > 0;
 }
 
-export function listCheckins(from: string, to: string): Checkin[] {
+export function listCheckins(userId: number, from: string, to: string): Checkin[] {
   const rows = db
     .prepare(
       `SELECT * FROM checkins WHERE user_id = ? AND date BETWEEN ? AND ?
        ORDER BY date DESC, created_at DESC`
     )
-    .all(DEFAULT_USER_ID, from, to) as CheckinRow[];
+    .all(userId, from, to) as CheckinRow[];
   return rows.map(mapCheckin);
 }
 
-/** 全部打卡日期（去重、升序），供 streak 计算 */
-export function allCheckinDates(): string[] {
+/** 该用户全部打卡日期（去重、升序），供 streak 计算 */
+export function allCheckinDates(userId: number): string[] {
   const rows = db
     .prepare(`SELECT DISTINCT date FROM checkins WHERE user_id = ? ORDER BY date ASC`)
-    .all(DEFAULT_USER_ID) as { date: string }[];
+    .all(userId) as { date: string }[];
   return rows.map((r) => r.date);
 }
 
 /** 最近一次力量类训练的日期（运动名自由输入，按分类器判断） */
-export function latestStrengthDate(): string | null {
+export function latestStrengthDate(userId: number): string | null {
   const rows = db
     .prepare(`SELECT DISTINCT date, activity FROM checkins WHERE user_id = ? ORDER BY date DESC`)
-    .all(DEFAULT_USER_ID) as { date: string; activity: Activity }[];
+    .all(userId) as { date: string; activity: Activity }[];
   for (const r of rows) {
     if (categoryOf(r.activity) === 'strength') return r.date;
   }
   return null;
 }
 
-export function getUserFeishuOpenId(): string | null {
-  const row = db.prepare(`SELECT feishu_open_id FROM users WHERE id = ?`).get(DEFAULT_USER_ID) as {
-    feishu_open_id: string | null;
-  };
-  return row.feishu_open_id;
-}
-
-export function bindFeishuOpenId(openId: string): void {
-  db.prepare(`UPDATE users SET feishu_open_id = ? WHERE id = ?`).run(openId, DEFAULT_USER_ID);
-}
+/* ---------------- agent reports ---------------- */
 
 interface ReportRow {
   id: number;
@@ -148,17 +188,19 @@ interface ReportRow {
   created_at: string;
 }
 
-export function saveReport(weekStart: string, content: string): void {
+export function saveReport(userId: number, weekStart: string, content: string): void {
   db.prepare(
     `INSERT INTO agent_reports (user_id, week_start, content) VALUES (?, ?, ?)
      ON CONFLICT (user_id, week_start) DO UPDATE SET content = excluded.content, created_at = datetime('now', 'localtime')`
-  ).run(DEFAULT_USER_ID, weekStart, content);
+  ).run(userId, weekStart, content);
 }
 
-export function latestReport(): WeeklyReport | null {
+export function latestReport(userId: number): WeeklyReport | null {
   const row = db
-    .prepare(`SELECT id, week_start, content, created_at FROM agent_reports WHERE user_id = ? ORDER BY week_start DESC LIMIT 1`)
-    .get(DEFAULT_USER_ID) as ReportRow | undefined;
+    .prepare(
+      `SELECT id, week_start, content, created_at FROM agent_reports WHERE user_id = ? ORDER BY week_start DESC LIMIT 1`
+    )
+    .get(userId) as ReportRow | undefined;
   if (!row) return null;
   return { id: row.id, weekStart: row.week_start, content: row.content, createdAt: row.created_at };
 }

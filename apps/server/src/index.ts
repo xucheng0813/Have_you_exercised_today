@@ -6,7 +6,16 @@ import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import type { NewCheckin, SetupStatus } from '@fitness/shared';
 import { env } from './env.js';
-import { deleteCheckin, getUserFeishuOpenId, insertCheckin, latestReport, listCheckins } from './db.js';
+import {
+  createUser,
+  deleteCheckin,
+  getUser,
+  insertCheckin,
+  latestReport,
+  listCheckins,
+  listUsers,
+  usersWithFeishu,
+} from './db.js';
 import { computeStats } from './stats.js';
 import { addDays, isValidDateStr, todayStr } from './dates.js';
 import { startFeishu } from './feishu/index.js';
@@ -14,19 +23,43 @@ import { runWeeklyReport, startJobs } from './jobs.js';
 
 const app = new Hono();
 
-app.get('/api/stats', (c) => c.json(computeStats()));
+/** 解析 ?userId=，缺省为默认用户 1；用户不存在返回 null */
+function resolveUserId(raw: string | undefined): number | null {
+  const id = raw === undefined ? 1 : Number(raw);
+  if (!Number.isInteger(id) || !getUser(id)) return null;
+  return id;
+}
+
+app.get('/api/users', (c) => c.json(listUsers()));
+
+app.post('/api/users', async (c) => {
+  const body = (await c.req.json().catch(() => null)) as { name?: string } | null;
+  const name = body?.name?.trim().slice(0, 20);
+  if (!name) return c.json({ error: 'name 不能为空' }, 400);
+  return c.json(createUser(name), 201);
+});
+
+app.get('/api/stats', (c) => {
+  const userId = resolveUserId(c.req.query('userId'));
+  if (userId === null) return c.json({ error: '用户不存在' }, 404);
+  return c.json(computeStats(userId));
+});
 
 app.get('/api/checkins', (c) => {
+  const userId = resolveUserId(c.req.query('userId'));
+  if (userId === null) return c.json({ error: '用户不存在' }, 404);
   const to = c.req.query('to') ?? todayStr();
   const from = c.req.query('from') ?? addDays(to, -180);
   if (!isValidDateStr(from) || !isValidDateStr(to)) {
     return c.json({ error: 'from/to 需为 YYYY-MM-DD' }, 400);
   }
-  return c.json(listCheckins(from, to));
+  return c.json(listCheckins(userId, from, to));
 });
 
 app.post('/api/checkins', async (c) => {
-  const body = (await c.req.json().catch(() => null)) as NewCheckin | null;
+  const body = (await c.req.json().catch(() => null)) as (NewCheckin & { userId?: number }) | null;
+  const userId = resolveUserId(body?.userId === undefined ? undefined : String(body.userId));
+  if (userId === null) return c.json({ error: '用户不存在' }, 404);
   const activity = typeof body?.activity === 'string' ? body.activity.trim().slice(0, 16) : '';
   if (!body || !activity) {
     return c.json({ error: 'activity 不能为空（如：跑步、攀岩、跳绳）' }, 400);
@@ -41,6 +74,7 @@ app.post('/api/checkins', async (c) => {
     return c.json({ error: 'durationMin 需为数字' }, 400);
   }
   const checkin = insertCheckin({
+    userId,
     date,
     activity,
     durationMin,
@@ -50,30 +84,38 @@ app.post('/api/checkins', async (c) => {
   return c.json(checkin, 201);
 });
 
+app.delete('/api/checkins/:id', (c) => {
+  const userId = resolveUserId(c.req.query('userId'));
+  if (userId === null) return c.json({ error: '用户不存在' }, 404);
+  const id = Number(c.req.param('id'));
+  if (!Number.isInteger(id) || !deleteCheckin(id, userId)) return c.json({ error: '记录不存在' }, 404);
+  return c.json({ ok: true });
+});
+
+app.get('/api/reports/latest', (c) => {
+  const userId = resolveUserId(c.req.query('userId'));
+  if (userId === null) return c.json({ error: '用户不存在' }, 404);
+  return c.json(latestReport(userId));
+});
+
+app.post('/api/reports/generate', async (c) => {
+  if (!env.deepseek.enabled) return c.json({ error: '未配置 DEEPSEEK_API_KEY' }, 400);
+  const userId = resolveUserId(c.req.query('userId'));
+  if (userId === null) return c.json({ error: '用户不存在' }, 404);
+  const content = await runWeeklyReport(userId);
+  return c.json({ content });
+});
+
 app.get('/api/setup', (c) => {
   const status: SetupStatus = {
     feishu: {
       configured: env.feishu.enabled,
-      bound: Boolean(getUserFeishuOpenId()),
+      boundUsers: usersWithFeishu().length,
       appId: env.feishu.appId || null,
     },
     deepseek: { configured: env.deepseek.enabled, model: env.deepseek.model },
   };
   return c.json(status);
-});
-
-app.delete('/api/checkins/:id', (c) => {
-  const id = Number(c.req.param('id'));
-  if (!Number.isInteger(id) || !deleteCheckin(id)) return c.json({ error: '记录不存在' }, 404);
-  return c.json({ ok: true });
-});
-
-app.get('/api/reports/latest', (c) => c.json(latestReport()));
-
-app.post('/api/reports/generate', async (c) => {
-  if (!env.deepseek.enabled) return c.json({ error: '未配置 DEEPSEEK_API_KEY' }, 400);
-  const content = await runWeeklyReport();
-  return c.json({ content });
 });
 
 // 静态托管前端构建产物（SPA fallback 到 index.html）

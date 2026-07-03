@@ -4,9 +4,9 @@ import { allCheckinDates, latestStrengthDate, listCheckins } from './db.js';
 
 const WEEK_GOAL = 5;
 
-export function computeStats(): Stats {
+export function computeStats(userId: number): Stats {
   const today = todayStr();
-  const dates = allCheckinDates();
+  const dates = allCheckinDates(userId);
   const dateSet = new Set(dates);
 
   // 连续打卡：今天没打则从昨天起算
@@ -29,7 +29,7 @@ export function computeStats(): Stats {
 
   // 本周（周一起）：休息日保连续，但不算运动天数/分钟
   const weekStart = mondayOf(today);
-  const weekCheckins = listCheckins(weekStart, addDays(weekStart, 6)).filter(
+  const weekCheckins = listCheckins(userId, weekStart, addDays(weekStart, 6)).filter(
     (c) => categoryOf(c.activity) !== 'rest'
   );
   const minutesByDay = [0, 0, 0, 0, 0, 0, 0];
@@ -42,14 +42,14 @@ export function computeStats(): Stats {
 
   // 本月
   const monthStart = `${today.slice(0, 7)}-01`;
-  const monthCheckins = listCheckins(monthStart, today).filter((c) => categoryOf(c.activity) !== 'rest');
+  const monthCheckins = listCheckins(userId, monthStart, today).filter((c) => categoryOf(c.activity) !== 'rest');
   const totalMinutes = monthCheckins.reduce((sum, c) => sum + (c.durationMin ?? 0), 0);
 
-  const lastStrength = latestStrengthDate();
+  const lastStrength = latestStrengthDate(userId);
   const weeksSinceStrength = lastStrength === null ? null : Math.floor(diffDays(today, lastStrength) / 7);
 
   return {
-    today: { checked: dateSet.has(today), checkins: listCheckins(today, today) },
+    today: { checked: dateSet.has(today), checkins: listCheckins(userId, today, today) },
     streak,
     longestStreak,
     week: { days: weekDays.size, goal: WEEK_GOAL, minutesByDay },

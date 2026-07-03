@@ -4,7 +4,7 @@ import { SUGGESTED_ACTIVITIES } from '@fitness/shared';
 import { api } from '../api';
 import { todayStr } from '../dates';
 
-export function CheckinDialog({ onClose }: { onClose: () => void }) {
+export function CheckinDialog({ userId, onClose }: { userId: number; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [date, setDate] = useState(todayStr());
   const [activity, setActivity] = useState('跑步');
@@ -14,6 +14,7 @@ export function CheckinDialog({ onClose }: { onClose: () => void }) {
   const mutation = useMutation({
     mutationFn: () =>
       api.createCheckin({
+        userId,
         date,
         activity,
         durationMin: duration ? Number(duration) : null,

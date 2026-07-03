@@ -48,6 +48,13 @@ button { font: inherit; cursor: pointer; }
 }
 .gnav .g-logo { color: #fff; font-size: 14px; font-weight: 600; letter-spacing: -0.12px; }
 .gnav .g-date { color: rgba(255, 255, 255, 0.8); font-size: 12px; letter-spacing: -0.12px; }
+.gnav .g-right { display: flex; align-items: center; gap: 16px; }
+.user-select {
+  background: rgba(255, 255, 255, 0.14); color: #fff; border: none; border-radius: 6px;
+  font: inherit; font-size: 12px; padding: 4px 8px; letter-spacing: -0.12px; cursor: pointer;
+}
+.user-select option { color: var(--ink); background: #fff; }
+@media (max-width: 600px) { .gnav .g-date { display: none; } }
 
 /* ---------- Hero 瓷砖 ---------- */
 .hero { background: var(--parchment); text-align: center; padding: 72px 24px 64px; }
@@ -64,6 +71,16 @@ button { font: inherit; cursor: pointer; }
 .hero .h-sub { font-size: 24px; font-weight: 400; line-height: 1.2; letter-spacing: 0.196px; margin: 14px 0 0; }
 .hero .h-caption { font-size: 14px; color: var(--muted); letter-spacing: -0.224px; margin: 10px 0 0; }
 .hero .h-ctas { display: flex; gap: 16px; justify-content: center; margin-top: 28px; flex-wrap: wrap; }
+
+/* Apple Fitness 健身圆环 */
+.rings { margin-top: 30px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.rings-legend {
+  display: flex; gap: 18px; flex-wrap: wrap; justify-content: center;
+  font-size: 12px; color: var(--muted); letter-spacing: -0.12px;
+  font-variant-numeric: tabular-nums;
+}
+.rings-legend span { display: flex; align-items: center; gap: 6px; }
+.rings-legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 
 .btn-primary {
   background: var(--blue);
@@ -104,11 +121,7 @@ button { font: inherit; cursor: pointer; }
   padding: 24px;
   text-align: center;
 }
-.stat-card .label {
-  font-size: 14px; font-weight: 600; color: var(--muted); letter-spacing: -0.224px; margin-bottom: 10px;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-}
-.label-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.stat-card .label { font-size: 14px; font-weight: 600; color: var(--muted); letter-spacing: -0.224px; margin-bottom: 10px; }
 .stat-card .value { font-size: 40px; font-weight: 600; line-height: 1.1; letter-spacing: -0.28px; font-variant-numeric: tabular-nums; }
 .stat-card .value small { font-size: 15px; font-weight: 400; color: var(--muted); margin-left: 2px; letter-spacing: 0; }
 .stat-card .sub { font-size: 12px; color: var(--muted); margin-top: 8px; letter-spacing: -0.12px; }
@@ -144,14 +157,6 @@ button { font: inherit; cursor: pointer; }
   font-size: 14px; font-weight: 600; color: var(--soft-on-dark);
   letter-spacing: 0.1em; text-transform: uppercase; margin: 0 0 14px;
 }
-/* Apple Intelligence 式渐变文字，AI 专属信号 */
-.coach .c-kicker.gradient {
-  background: linear-gradient(90deg, #0a84ff 0%, #bf5af2 38%, #ff375f 72%, #ff9f0a 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  display: inline-block;
-}
 .coach h2 { font-size: clamp(30px, 5vw, 40px); font-weight: 600; line-height: 1.1; letter-spacing: -0.28px; margin: 0 0 18px; text-wrap: balance; }
 .coach p { font-size: 17px; line-height: 1.47; letter-spacing: -0.374px; color: var(--soft-on-dark); max-width: 58ch; margin: 0 auto; white-space: pre-wrap; }
 
@@ -161,7 +166,6 @@ button { font: inherit; cursor: pointer; }
 .recent li { display: flex; align-items: center; gap: 16px; padding: 16px 4px; border-bottom: 1px solid var(--divider); font-size: 17px; }
 .recent li:last-child { border-bottom: none; }
 .r-date { font-family: var(--mono); font-size: 12px; color: var(--muted); width: 88px; flex-shrink: 0; font-variant-numeric: tabular-nums; letter-spacing: 0; }
-.r-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-right: -6px; }
 .r-type { font-weight: 600; letter-spacing: -0.374px; }
 .r-dur { color: var(--muted); font-size: 14px; letter-spacing: -0.224px; }
 .r-right { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
