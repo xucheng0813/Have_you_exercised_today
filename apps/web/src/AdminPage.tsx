@@ -1,3 +1,4 @@
+import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './api';
 import { weekdayLabel } from './dates';
@@ -6,28 +7,63 @@ import { ConnectSection } from './components/ConnectSection';
 function MembersCard() {
   const queryClient = useQueryClient();
   const { data: users } = useQuery({ queryKey: ['admin-users'], queryFn: api.adminUsers });
+  // 内联编辑状态（不用 window.prompt/confirm，嵌入式浏览器里会被拦掉）
+  const [editing, setEditing] = useState<{ id: number; name: string } | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+
   const invalidate = () => void queryClient.invalidateQueries();
   const rename = useMutation({
     mutationFn: ({ id, name }: { id: number; name: string }) => api.renameUser(id, name),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      setEditing(null);
+    },
   });
-  const del = useMutation({ mutationFn: api.deleteUser, onSuccess: invalidate });
-  const create = useMutation({ mutationFn: api.createUser, onSuccess: invalidate });
+  const del = useMutation({
+    mutationFn: api.deleteUser,
+    onSuccess: () => {
+      invalidate();
+      setConfirmDelete(null);
+    },
+  });
+  const create = useMutation({
+    mutationFn: api.createUser,
+    onSuccess: () => {
+      invalidate();
+      setAdding(false);
+      setNewName('');
+    },
+  });
+
+  const submitRename = (e: FormEvent) => {
+    e.preventDefault();
+    if (editing && editing.name.trim()) rename.mutate({ id: editing.id, name: editing.name.trim() });
+  };
 
   return (
     <div className="card">
       <div className="card-head">
         <p className="card-title">成员管理</p>
-        <button
-          className="text-btn"
-          onClick={() => {
-            const name = window.prompt('新成员名字：')?.trim();
-            if (name) create.mutate(name);
+        {!adding && (
+          <button className="text-btn" onClick={() => setAdding(true)}>＋ 添加成员</button>
+        )}
+      </div>
+      {adding && (
+        <form
+          className="inline-add"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (newName.trim()) create.mutate(newName.trim());
           }}
         >
-          ＋ 添加成员
-        </button>
-      </div>
+          <input autoFocus value={newName} maxLength={20} placeholder="新成员名字"
+            onChange={(e) => setNewName(e.target.value)} />
+          <button type="submit" className="btn-primary sm" disabled={create.isPending || !newName.trim()}>添加</button>
+          <button type="button" className="text-btn" onClick={() => setAdding(false)}>取消</button>
+        </form>
+      )}
       <div className="table-scroll">
         <table className="admin-table">
           <thead>
@@ -36,7 +72,16 @@ function MembersCard() {
           <tbody>
             {(users ?? []).map((u) => (
               <tr key={u.id}>
-                <td className="t-name">{u.name}</td>
+                <td className="t-name">
+                  {editing?.id === u.id ? (
+                    <form className="inline-edit" onSubmit={submitRename}>
+                      <input autoFocus value={editing.name} maxLength={20}
+                        onChange={(e) => setEditing({ id: u.id, name: e.target.value })} />
+                    </form>
+                  ) : (
+                    u.name
+                  )}
+                </td>
                 <td>
                   {u.feishuOpenId ? (
                     <span className="status-chip ok">已绑定</span>
@@ -47,32 +92,42 @@ function MembersCard() {
                 <td className="t-num">{u.checkinCount}</td>
                 <td className="t-num">{u.lastDate ?? '—'}</td>
                 <td className="t-actions">
-                  <button
-                    className="text-btn"
-                    onClick={() => {
-                      const name = window.prompt(`「${u.name}」改名为：`, u.name)?.trim();
-                      if (name && name !== u.name) rename.mutate({ id: u.id, name });
-                    }}
-                  >
-                    重命名
-                  </button>
-                  <button
-                    className="text-btn danger"
-                    onClick={() =>
-                      window.confirm(`删除成员「${u.name}」？其全部 ${u.checkinCount} 条打卡记录和周报会一并删除。`) &&
-                      del.mutate(u.id)
-                    }
-                  >
-                    删除
-                  </button>
+                  {editing?.id === u.id ? (
+                    <>
+                      <button className="text-btn" disabled={rename.isPending || !editing.name.trim()}
+                        onClick={submitRename}>
+                        {rename.isPending ? '保存中…' : '保存'}
+                      </button>
+                      <button className="text-btn" onClick={() => setEditing(null)}>取消</button>
+                    </>
+                  ) : confirmDelete === u.id ? (
+                    <>
+                      <span className="confirm-hint">删除其全部数据？</span>
+                      <button className="text-btn danger" disabled={del.isPending} onClick={() => del.mutate(u.id)}>
+                        {del.isPending ? '删除中…' : '确认删除'}
+                      </button>
+                      <button className="text-btn" onClick={() => setConfirmDelete(null)}>取消</button>
+                    </>
+                  ) : (
+                    <>
+                      <button className="text-btn"
+                        onClick={() => { setEditing({ id: u.id, name: u.name }); setConfirmDelete(null); }}>
+                        重命名
+                      </button>
+                      <button className="text-btn danger"
+                        onClick={() => { setConfirmDelete(u.id); setEditing(null); }}>
+                        删除
+                      </button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      {(rename.isError || del.isError) && (
-        <p className="form-error">{((rename.error ?? del.error) as Error).message}</p>
+      {(rename.isError || del.isError || create.isError) && (
+        <p className="form-error">{((rename.error ?? del.error ?? create.error) as Error).message}</p>
       )}
     </div>
   );
@@ -120,9 +175,13 @@ function ReportsCard() {
 function AllRecordsCard() {
   const queryClient = useQueryClient();
   const { data: records } = useQuery({ queryKey: ['admin-checkins'], queryFn: () => api.adminCheckins(30) });
+  const [confirmId, setConfirmId] = useState<number | null>(null);
   const del = useMutation({
     mutationFn: ({ id, userId }: { id: number; userId: number }) => api.deleteCheckin(id, userId),
-    onSuccess: () => void queryClient.invalidateQueries(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
+      setConfirmId(null);
+    },
   });
   return (
     <div className="card">
@@ -143,14 +202,23 @@ function AllRecordsCard() {
                 {[c.durationMin ? `${c.durationMin} 分钟` : null, c.note].filter(Boolean).join(' · ')}
               </span>
               <span className="r-right">
-                <span className="r-src">{c.source === 'feishu' ? '飞书' : '网页'}</span>
-                <button className="r-del" title="删除这条记录" aria-label="删除这条记录"
-                  onClick={() =>
-                    window.confirm(`删除 ${c.userName} ${c.date} 的${c.activity}记录？`) &&
-                    del.mutate({ id: c.id, userId: c.userId })
-                  }>
-                  ✕
-                </button>
+                {confirmId === c.id ? (
+                  <>
+                    <button className="text-btn danger" disabled={del.isPending}
+                      onClick={() => del.mutate({ id: c.id, userId: c.userId })}>
+                      确认删除
+                    </button>
+                    <button className="text-btn" onClick={() => setConfirmId(null)}>取消</button>
+                  </>
+                ) : (
+                  <>
+                    <span className="r-src">{c.source === 'feishu' ? '飞书' : '网页'}</span>
+                    <button className="r-del" title="删除这条记录" aria-label="删除这条记录"
+                      onClick={() => setConfirmId(c.id)}>
+                      ✕
+                    </button>
+                  </>
+                )}
               </span>
             </li>
           ))}

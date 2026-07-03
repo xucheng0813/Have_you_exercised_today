@@ -231,6 +231,16 @@ button { font: inherit; cursor: pointer; }
 .text-btn.danger { color: #d30005; }
 .text-btn:disabled { color: var(--muted); cursor: default; }
 
+.inline-add { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
+.inline-add input, .inline-edit input {
+  font: inherit; font-size: 14px; padding: 6px 10px; color: var(--ink);
+  border: 1px solid var(--blue-focus); border-radius: 8px; background: var(--white); min-width: 0;
+}
+.inline-add input { width: 180px; }
+.inline-edit input { width: 110px; }
+.inline-edit { margin: -7px 0; }
+.confirm-hint { font-size: 12px; color: var(--muted); margin-right: 2px; }
+
 .report-list { list-style: none; margin: 0; padding: 0; }
 .report-list li {
   display: flex; align-items: center; justify-content: space-between;

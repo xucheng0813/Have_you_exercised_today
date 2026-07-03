@@ -22,23 +22,14 @@ function useHashRoute(): string {
 }
 
 function UserPicker({ users, userId, onChange }: { users: User[]; userId: number; onChange: (id: number) => void }) {
-  const queryClient = useQueryClient();
-  const create = useMutation({
-    mutationFn: api.createUser,
-    onSuccess: (user) => {
-      void queryClient.invalidateQueries({ queryKey: ['users'] });
-      onChange(user.id);
-    },
-  });
   return (
     <select
       className="user-select"
       value={userId}
       aria-label="切换成员"
       onChange={(e) => {
-        if (e.target.value === '__new__') {
-          const name = window.prompt('新成员名字：')?.trim();
-          if (name) create.mutate(name);
+        if (e.target.value === '__manage__') {
+          window.location.hash = '#/admin'; // 添加/重命名成员在后台管理页
         } else {
           onChange(Number(e.target.value));
         }
@@ -47,7 +38,7 @@ function UserPicker({ users, userId, onChange }: { users: User[]; userId: number
       {users.map((u) => (
         <option key={u.id} value={u.id}>{u.name}</option>
       ))}
-      <option value="__new__">＋ 添加成员</option>
+      <option value="__manage__">＋ 管理成员…</option>
     </select>
   );
 }
@@ -189,9 +180,13 @@ function CoachCard({ userId }: { userId: number }) {
 
 function RecentCard({ checkins, userId, onBackfill }: { checkins: Checkin[]; userId: number; onBackfill: () => void }) {
   const queryClient = useQueryClient();
+  const [confirmId, setConfirmId] = useState<number | null>(null);
   const del = useMutation({
     mutationFn: (id: number) => api.deleteCheckin(id, userId),
-    onSuccess: () => void queryClient.invalidateQueries(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
+      setConfirmId(null);
+    },
   });
   const recent = checkins.slice(0, 10);
   return (
@@ -212,11 +207,22 @@ function RecentCard({ checkins, userId, onBackfill }: { checkins: Checkin[]; use
                 {[c.durationMin ? `${c.durationMin} 分钟` : null, c.note].filter(Boolean).join(' · ')}
               </span>
               <span className="r-right">
-                <span className="r-src">{c.source === 'feishu' ? '飞书' : '网页'}</span>
-                <button className="r-del" title="删除这条记录" aria-label="删除这条记录"
-                  onClick={() => window.confirm(`删除 ${c.date} 的${c.activity}记录？`) && del.mutate(c.id)}>
-                  ✕
-                </button>
+                {confirmId === c.id ? (
+                  <>
+                    <button className="text-btn danger" disabled={del.isPending} onClick={() => del.mutate(c.id)}>
+                      确认删除
+                    </button>
+                    <button className="text-btn" onClick={() => setConfirmId(null)}>取消</button>
+                  </>
+                ) : (
+                  <>
+                    <span className="r-src">{c.source === 'feishu' ? '飞书' : '网页'}</span>
+                    <button className="r-del" title="删除这条记录" aria-label="删除这条记录"
+                      onClick={() => setConfirmId(c.id)}>
+                      ✕
+                    </button>
+                  </>
+                )}
               </span>
             </li>
           ))}

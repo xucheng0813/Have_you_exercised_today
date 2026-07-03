@@ -63,8 +63,10 @@ export function setSetting(key: string, value: string): void {
   );
 }
 
-/** 保证 id=1 的默认用户存在（网页端无飞书时也能用） */
-db.prepare(`INSERT OR IGNORE INTO users (id, name) VALUES (1, ?)`).run(env.userName);
+/** 首次启动（用户表为空）时创建默认用户，网页端无飞书也能直接用；已删除的不再重建 */
+if ((db.prepare(`SELECT COUNT(*) AS n FROM users`).get() as { n: number }).n === 0) {
+  db.prepare(`INSERT INTO users (id, name) VALUES (1, ?)`).run(env.userName);
+}
 
 /* ---------------- users ---------------- */
 
