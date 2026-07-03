@@ -1,13 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ACTIVITIES, type Activity } from '@fitness/shared';
+import { SUGGESTED_ACTIVITIES } from '@fitness/shared';
 import { api } from '../api';
 import { todayStr } from '../dates';
 
 export function CheckinDialog({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient();
   const [date, setDate] = useState(todayStr());
-  const [activity, setActivity] = useState<Activity>('跑步');
+  const [activity, setActivity] = useState('跑步');
   const [duration, setDuration] = useState('30');
   const [note, setNote] = useState('');
 
@@ -40,12 +40,14 @@ export function CheckinDialog({ onClose }: { onClose: () => void }) {
             onChange={(e) => setDate(e.target.value)} />
         </div>
         <div className="field">
-          <label htmlFor="ck-activity">运动类型</label>
-          <select id="ck-activity" value={activity} onChange={(e) => setActivity(e.target.value as Activity)}>
-            {ACTIVITIES.map((a) => (
-              <option key={a} value={a}>{a}</option>
+          <label htmlFor="ck-activity">运动（可自由填写）</label>
+          <input id="ck-activity" list="activity-suggestions" value={activity} required maxLength={16}
+            placeholder="跑步 / 攀岩 / 跳绳…" onChange={(e) => setActivity(e.target.value)} />
+          <datalist id="activity-suggestions">
+            {SUGGESTED_ACTIVITIES.map((a) => (
+              <option key={a} value={a} />
             ))}
-          </select>
+          </datalist>
         </div>
         <div className="field">
           <label htmlFor="ck-duration">时长（分钟，可留空）</label>

@@ -13,7 +13,7 @@ export const env = {
   },
   deepseek: {
     apiKey: process.env.DEEPSEEK_API_KEY ?? '',
-    model: process.env.DEEPSEEK_MODEL ?? 'deepseek-chat',
+    model: process.env.DEEPSEEK_MODEL ?? 'deepseek-v4-flash',
     get enabled() {
       return Boolean(this.apiKey);
     },

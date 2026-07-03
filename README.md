@@ -6,8 +6,8 @@
 
 - **后端**：Node + Hono + TypeScript，better-sqlite3（单文件 `data.db`）
 - **前端**：React + Vite + TanStack Query（Apple 风格设计，见 `docs/` 设计稿）
-- **飞书**：`@larksuiteoapi/node-sdk` 长连接事件订阅（参考 multica 模式，无需公网回调地址）
-- **AI**：DeepSeek（OpenAI 兼容 SDK）—— 打卡消息解析 + 每周教练点评
+- **飞书**：`@larksuiteoapi/node-sdk` 长连接事件订阅（参考 multica 模式，无需公网回调地址），网页扫码即可完成绑定
+- **AI**：DeepSeek `deepseek-v4-flash`（OpenAI 兼容 SDK，[官方文档](https://api-docs.deepseek.com/zh-cn/)）—— 自由识别任意运动类型 + 每周教练点评
 
 ## 快速开始
 
@@ -32,9 +32,9 @@ npm run dev:web        # 前端 :5173（/api 代理到 :3000）
 1. 在[飞书开放平台](https://open.feishu.cn)创建**企业自建应用**，拿到 App ID / App Secret 填入 `.env`
 2. 开通权限：`im:message`（读取消息）、`im:message:send_as_bot`（发送消息）
 3. 事件订阅选择**「使用长连接接收事件」**，添加事件 `im.message.receive_v1`（无需配置回调 URL）
-4. 发布应用，找机器人私聊即可。第一个私聊的人自动绑定为主人
+4. 发布应用，打开网页仪表盘底部「接入」区块，**用飞书扫一扫二维码**打开机器人，随便发一句话即自动完成绑定
 
-机器人用法：
+机器人用法（运动类型由 DeepSeek 自由识别，攀岩、跳绳、飞盘都认得）：
 
 - `打卡 晚上跑了5公里 35分钟` → 记录一次跑步
 - `休息` → 记录休息日（保住连续记录）

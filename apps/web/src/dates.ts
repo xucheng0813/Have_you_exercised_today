@@ -16,6 +16,15 @@ export function addDays(dateStr: string, n: number): string {
   return toDateStr(date);
 }
 
+/** a - b 的天数差 */
+export function diffDays(a: string, b: string): number {
+  const parse = (s: string) => {
+    const [y, m, d] = s.split('-').map(Number);
+    return new Date(y!, m! - 1, d!).getTime();
+  };
+  return Math.round((parse(a) - parse(b)) / 86_400_000);
+}
+
 /** 所在周的周一 */
 export function mondayOf(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number);

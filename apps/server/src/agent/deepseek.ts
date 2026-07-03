@@ -1,19 +1,27 @@
 import OpenAI from 'openai';
-import { ACTIVITIES, type Activity, type Checkin, type ParsedCheckin } from '@fitness/shared';
+import { REST_ACTIVITY, type Activity, type Checkin, type ParsedCheckin } from '@fitness/shared';
 import { env } from '../env.js';
 
+// OpenAI 兼容格式，见 https://api-docs.deepseek.com/zh-cn/
 const client = env.deepseek.enabled
   ? new OpenAI({ apiKey: env.deepseek.apiKey, baseURL: 'https://api.deepseek.com' })
   : null;
 
-const PARSE_SYSTEM_PROMPT = `你是健身打卡记录解析器。用户发来一条消息，判断是否为运动打卡，并解析成 JSON：
+// JSON Output 模式要求 prompt 中出现 "json" 字样，并显式给出格式示例
+const PARSE_SYSTEM_PROMPT = `你是健身打卡记录解析器。用户发来一条消息，判断是否为运动打卡，并输出 JSON：
 {
   "is_checkin": boolean,   // 是否在汇报一次运动（或明确说今天休息）
-  "activity": string,      // 必须是以下之一：${ACTIVITIES.join('、')}
+  "activity": string,      // 运动名称：2~6 个字的中文名词，按用户实际运动识别，如「跑步」「攀岩」「跳绳」「羽毛球」「力量训练」；休息日固定为「${REST_ACTIVITY}」
   "duration_min": number | null,  // 运动时长（分钟），说了小时要换算，没说则 null
-  "note": string | null    // 距离、部位等补充信息，如「5 公里」「练腿」，没有则 null
+  "note": string | null    // 距离、部位、强度等补充信息，如「5 公里」「练腿」，没有则 null
 }
 注意：闲聊、提问、查询统计都不是打卡（is_checkin=false）。只输出 JSON。`;
+
+function sanitizeActivity(value: unknown): Activity {
+  if (typeof value !== 'string') return '其他';
+  const v = value.trim().slice(0, 16);
+  return v || '其他';
+}
 
 /** DeepSeek 解析；未配置 key 或调用失败时降级为正则解析 */
 export async function parseCheckinMessage(text: string): Promise<ParsedCheckin> {
@@ -29,10 +37,9 @@ export async function parseCheckinMessage(text: string): Promise<ParsedCheckin> 
         temperature: 0,
       });
       const raw = JSON.parse(res.choices[0]?.message.content ?? '{}');
-      const activity = ACTIVITIES.includes(raw.activity) ? (raw.activity as Activity) : '其他';
       return {
         isCheckin: Boolean(raw.is_checkin),
-        activity,
+        activity: sanitizeActivity(raw.activity),
         durationMin: typeof raw.duration_min === 'number' ? Math.round(raw.duration_min) : null,
         note: typeof raw.note === 'string' && raw.note ? raw.note : null,
       };
@@ -48,10 +55,15 @@ const ACTIVITY_KEYWORDS: [RegExp, Activity][] = [
   [/力量|撸铁|举铁|健身房|深蹲|卧推|硬拉|练(胸|背|腿|肩|臂|上肢|下肢)/, '力量训练'],
   [/游泳|游了|自由泳|蛙泳/, '游泳'],
   [/骑行|骑车|单车|动感单车/, '骑行'],
-  [/羽毛球|篮球|足球|网球|乒乓|排球|壁球/, '球类'],
+  [/羽毛球/, '羽毛球'],
+  [/篮球/, '篮球'],
+  [/足球/, '足球'],
+  [/网球/, '网球'],
+  [/乒乓/, '乒乓球'],
+  [/跳绳/, '跳绳'],
   [/瑜伽|普拉提|拉伸/, '瑜伽'],
   [/徒步|爬山|登山|hiking/i, '徒步'],
-  [/休息|歇一天|不练/, '休息'],
+  [/休息|歇一天|不练/, REST_ACTIVITY],
 ];
 
 export function parseByRegex(text: string): ParsedCheckin {

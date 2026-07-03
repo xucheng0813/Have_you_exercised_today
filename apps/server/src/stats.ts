@@ -1,6 +1,6 @@
-import type { Stats } from '@fitness/shared';
+import { categoryOf, type Stats } from '@fitness/shared';
 import { addDays, diffDays, mondayOf, todayStr } from './dates.js';
-import { allCheckinDates, latestDateOfActivity, listCheckins } from './db.js';
+import { allCheckinDates, latestStrengthDate, listCheckins } from './db.js';
 
 const WEEK_GOAL = 5;
 
@@ -29,7 +29,9 @@ export function computeStats(): Stats {
 
   // 本周（周一起）：休息日保连续，但不算运动天数/分钟
   const weekStart = mondayOf(today);
-  const weekCheckins = listCheckins(weekStart, addDays(weekStart, 6)).filter((c) => c.activity !== '休息');
+  const weekCheckins = listCheckins(weekStart, addDays(weekStart, 6)).filter(
+    (c) => categoryOf(c.activity) !== 'rest'
+  );
   const minutesByDay = [0, 0, 0, 0, 0, 0, 0];
   const weekDays = new Set<string>();
   for (const c of weekCheckins) {
@@ -40,10 +42,10 @@ export function computeStats(): Stats {
 
   // 本月
   const monthStart = `${today.slice(0, 7)}-01`;
-  const monthCheckins = listCheckins(monthStart, today).filter((c) => c.activity !== '休息');
+  const monthCheckins = listCheckins(monthStart, today).filter((c) => categoryOf(c.activity) !== 'rest');
   const totalMinutes = monthCheckins.reduce((sum, c) => sum + (c.durationMin ?? 0), 0);
 
-  const lastStrength = latestDateOfActivity('力量训练');
+  const lastStrength = latestStrengthDate();
   const weeksSinceStrength = lastStrength === null ? null : Math.floor(diffDays(today, lastStrength) / 7);
 
   return {

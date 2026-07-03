@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import type { Activity, Checkin, CheckinSource, WeeklyReport } from '@fitness/shared';
+import { categoryOf, type Activity, type Checkin, type CheckinSource, type WeeklyReport } from '@fitness/shared';
 import { env } from './env.js';
 
 export const db = new Database(env.databasePath);
@@ -119,11 +119,15 @@ export function allCheckinDates(): string[] {
   return rows.map((r) => r.date);
 }
 
-export function latestDateOfActivity(activity: Activity): string | null {
-  const row = db
-    .prepare(`SELECT MAX(date) AS d FROM checkins WHERE user_id = ? AND activity = ?`)
-    .get(DEFAULT_USER_ID, activity) as { d: string | null };
-  return row.d;
+/** 最近一次力量类训练的日期（运动名自由输入，按分类器判断） */
+export function latestStrengthDate(): string | null {
+  const rows = db
+    .prepare(`SELECT DISTINCT date, activity FROM checkins WHERE user_id = ? ORDER BY date DESC`)
+    .all(DEFAULT_USER_ID) as { date: string; activity: Activity }[];
+  for (const r of rows) {
+    if (categoryOf(r.activity) === 'strength') return r.date;
+  }
+  return null;
 }
 
 export function getUserFeishuOpenId(): string | null {

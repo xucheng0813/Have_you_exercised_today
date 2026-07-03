@@ -1,4 +1,4 @@
-import type { Checkin, NewCheckin, Stats, WeeklyReport } from '@fitness/shared';
+import type { Checkin, NewCheckin, SetupStatus, Stats, WeeklyReport } from '@fitness/shared';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -20,4 +20,5 @@ export const api = {
     }),
   deleteCheckin: (id: number) => request<{ ok: boolean }>(`/api/checkins/${id}`, { method: 'DELETE' }),
   latestReport: () => request<WeeklyReport | null>('/api/reports/latest'),
+  setup: () => request<SetupStatus>('/api/setup'),
 };

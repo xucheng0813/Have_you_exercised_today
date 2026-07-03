@@ -1,4 +1,5 @@
 import * as Lark from '@larksuiteoapi/node-sdk';
+import { categoryOf } from '@fitness/shared';
 import { env } from '../env.js';
 import { bindFeishuOpenId, getUserFeishuOpenId, insertCheckin } from '../db.js';
 import { computeStats } from '../stats.js';
@@ -98,7 +99,7 @@ async function handleMessage(data: {
   });
 
   const s = computeStats();
-  if (parsed.activity === '休息') {
+  if (categoryOf(parsed.activity) === 'rest') {
     await reply(`😌 已记录休息日，连续记录保住了（${s.streak} 天）。好好恢复！`);
     return;
   }

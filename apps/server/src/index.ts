@@ -4,9 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
-import { ACTIVITIES, type NewCheckin } from '@fitness/shared';
+import type { NewCheckin, SetupStatus } from '@fitness/shared';
 import { env } from './env.js';
-import { deleteCheckin, insertCheckin, latestReport, listCheckins } from './db.js';
+import { deleteCheckin, getUserFeishuOpenId, insertCheckin, latestReport, listCheckins } from './db.js';
 import { computeStats } from './stats.js';
 import { addDays, isValidDateStr, todayStr } from './dates.js';
 import { startFeishu } from './feishu/index.js';
@@ -27,8 +27,9 @@ app.get('/api/checkins', (c) => {
 
 app.post('/api/checkins', async (c) => {
   const body = (await c.req.json().catch(() => null)) as NewCheckin | null;
-  if (!body || !ACTIVITIES.includes(body.activity)) {
-    return c.json({ error: `activity 需为：${ACTIVITIES.join(' / ')}` }, 400);
+  const activity = typeof body?.activity === 'string' ? body.activity.trim().slice(0, 16) : '';
+  if (!body || !activity) {
+    return c.json({ error: 'activity 不能为空（如：跑步、攀岩、跳绳）' }, 400);
   }
   const date = body.date ?? todayStr();
   if (!isValidDateStr(date) || date > todayStr()) {
@@ -41,12 +42,24 @@ app.post('/api/checkins', async (c) => {
   }
   const checkin = insertCheckin({
     date,
-    activity: body.activity,
+    activity,
     durationMin,
     note: body.note?.trim() || null,
     source: 'web',
   });
   return c.json(checkin, 201);
+});
+
+app.get('/api/setup', (c) => {
+  const status: SetupStatus = {
+    feishu: {
+      configured: env.feishu.enabled,
+      bound: Boolean(getUserFeishuOpenId()),
+      appId: env.feishu.appId || null,
+    },
+    deepseek: { configured: env.deepseek.enabled, model: env.deepseek.model },
+  };
+  return c.json(status);
 });
 
 app.delete('/api/checkins/:id', (c) => {
