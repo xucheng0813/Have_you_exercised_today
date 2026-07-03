@@ -15,6 +15,7 @@ const HELP_TEXT = [
 ].join('\n');
 
 let client: Lark.Client | null = null;
+let wsClient: Lark.WSClient | null = null;
 let running = false;
 
 export interface FeishuCredentials {
@@ -46,14 +47,30 @@ export async function verifyFeishuCredentials(creds: FeishuCredentials): Promise
   return body.code === 0 ? null : `飞书校验失败：${body.msg}（code ${body.code}）`;
 }
 
-/** 网页提交凭证：校验 → 存库 → 热启动长连接 */
+/** 网页提交凭证：校验 → 存库 → 重连长连接（首次配置和更换凭证都走这里） */
 export async function saveFeishuCredentials(creds: FeishuCredentials): Promise<string | null> {
   const error = await verifyFeishuCredentials(creds);
   if (error) return error;
   setSetting('feishu_app_id', creds.appId);
   setSetting('feishu_app_secret', creds.appSecret);
-  startFeishu();
+  restartFeishu();
   return null;
+}
+
+/** 断开现有长连接并用当前凭证重连 */
+export function restartFeishu(): void {
+  if (wsClient) {
+    try {
+      wsClient.close({ force: true });
+      console.log('[feishu] 旧长连接已断开');
+    } catch (err) {
+      console.error('[feishu] 断开旧连接失败（忽略，继续重连）:', err);
+    }
+    wsClient = null;
+    client = null;
+  }
+  running = false;
+  startFeishu();
 }
 
 /** 主动给某个飞书用户发消息（提醒、周报用） */
@@ -178,7 +195,7 @@ export function startFeishu(): void {
     domain: Lark.Domain.Feishu,
   });
 
-  const wsClient = new Lark.WSClient({
+  wsClient = new Lark.WSClient({
     appId: creds.appId,
     appSecret: creds.appSecret,
     domain: Lark.Domain.Feishu,

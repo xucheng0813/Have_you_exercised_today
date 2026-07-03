@@ -50,14 +50,17 @@ function DeepseekSetupForm() {
   );
 }
 
-/** 一次性配置：粘贴自建应用凭证，保存即校验并热启动长连接 */
-function FeishuSetupForm() {
+/** 粘贴自建应用凭证，保存即校验并重连长连接；首次配置与更换凭证共用 */
+function FeishuSetupForm({ initialAppId = '', onDone }: { initialAppId?: string; onDone?: () => void }) {
   const queryClient = useQueryClient();
-  const [appId, setAppId] = useState('');
+  const [appId, setAppId] = useState(initialAppId);
   const [appSecret, setAppSecret] = useState('');
   const save = useMutation({
     mutationFn: () => api.saveFeishu(appId.trim(), appSecret.trim()),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['setup'] }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['setup'] });
+      onDone?.();
+    },
   });
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -66,7 +69,7 @@ function FeishuSetupForm() {
   return (
     <form className="feishu-setup" onSubmit={submit}>
       <p className="connect-text">
-        一次性配置：在
+        在
         <a href="https://open.feishu.cn" target="_blank" rel="noreferrer">飞书开放平台</a>
         创建自建应用（权限开 <code>im:message</code> 收发，事件订阅选「长连接」并添加接收消息事件，发布），
         把凭证粘贴到这里。保存即生效，之后所有人扫码即用。
@@ -75,15 +78,19 @@ function FeishuSetupForm() {
         onChange={(e) => setAppId(e.target.value)} />
       <input value={appSecret} type="password" placeholder="App Secret" aria-label="App Secret"
         onChange={(e) => setAppSecret(e.target.value)} />
-      <button type="submit" className="btn-primary sm" disabled={save.isPending || !appId.trim() || !appSecret.trim()}>
-        {save.isPending ? '校验中…' : '保存并连接'}
-      </button>
+      <div className="setup-actions">
+        <button type="submit" className="btn-primary sm" disabled={save.isPending || !appId.trim() || !appSecret.trim()}>
+          {save.isPending ? '校验中…' : '保存并连接'}
+        </button>
+        {onDone && <button type="button" className="text-btn" onClick={onDone}>取消</button>}
+      </div>
       {save.isError && <p className="form-error">{(save.error as Error).message}</p>}
     </form>
   );
 }
 
 export function ConnectSection() {
+  const [editingFeishu, setEditingFeishu] = useState(false);
   const { data: setup } = useQuery({
     queryKey: ['setup'],
     queryFn: api.setup,
@@ -102,15 +109,20 @@ export function ConnectSection() {
       <div className="card connect-card">
           <div className="connect-head">
             <p className="card-title">飞书机器人</p>
-            {feishu.boundUsers > 0 ? (
-              <StatusChip tone="ok">{`已连接 · ${feishu.boundUsers} 人`}</StatusChip>
-            ) : feishu.configured ? (
-              <StatusChip tone="wait">待扫码</StatusChip>
-            ) : (
-              <StatusChip tone="off">未配置</StatusChip>
-            )}
+            <span className="connect-head-right">
+              {feishu.configured && !editingFeishu && (
+                <button className="text-btn" onClick={() => setEditingFeishu(true)}>更换凭证</button>
+              )}
+              {feishu.boundUsers > 0 ? (
+                <StatusChip tone="ok">{`已连接 · ${feishu.boundUsers} 人`}</StatusChip>
+              ) : feishu.configured ? (
+                <StatusChip tone="wait">待扫码</StatusChip>
+              ) : (
+                <StatusChip tone="off">未配置</StatusChip>
+              )}
+            </span>
           </div>
-          {feishu.configured && feishu.appId ? (
+          {feishu.configured && feishu.appId && !editingFeishu ? (
             <>
               <p className="connect-text">
                 用飞书「扫一扫」打开机器人，发一句话即自动加入——每个扫码的人都有自己的打卡档案；
@@ -118,6 +130,8 @@ export function ConnectSection() {
               </p>
               <FeishuQR appId={feishu.appId} />
             </>
+          ) : feishu.configured ? (
+            <FeishuSetupForm initialAppId={feishu.appId ?? ''} onDone={() => setEditingFeishu(false)} />
           ) : (
             <FeishuSetupForm />
           )}
