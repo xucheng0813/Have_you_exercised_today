@@ -26,4 +26,6 @@ export const api = {
     request<{ ok: boolean }>(`/api/checkins/${id}?userId=${userId}`, { method: 'DELETE' }),
   latestReport: (userId: number) => request<WeeklyReport | null>(`/api/reports/latest?userId=${userId}`),
   setup: () => request<SetupStatus>('/api/setup'),
+  saveFeishu: (appId: string, appSecret: string) =>
+    request<{ ok: boolean }>('/api/setup/feishu', post({ appId, appSecret })),
 };

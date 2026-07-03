@@ -18,7 +18,7 @@ import {
 } from './db.js';
 import { computeStats } from './stats.js';
 import { addDays, isValidDateStr, todayStr } from './dates.js';
-import { startFeishu } from './feishu/index.js';
+import { feishuCredentials, saveFeishuCredentials, startFeishu } from './feishu/index.js';
 import { runWeeklyReport, startJobs } from './jobs.js';
 
 const app = new Hono();
@@ -107,15 +107,27 @@ app.post('/api/reports/generate', async (c) => {
 });
 
 app.get('/api/setup', (c) => {
+  const creds = feishuCredentials();
   const status: SetupStatus = {
     feishu: {
-      configured: env.feishu.enabled,
+      configured: creds !== null,
       boundUsers: usersWithFeishu().length,
-      appId: env.feishu.appId || null,
+      appId: creds?.appId ?? null,
     },
     deepseek: { configured: env.deepseek.enabled, model: env.deepseek.model },
   };
   return c.json(status);
+});
+
+// 网页直接粘贴飞书凭证：校验 → 存 SQLite → 热启动长连接（无需重启服务）
+app.post('/api/setup/feishu', async (c) => {
+  const body = (await c.req.json().catch(() => null)) as { appId?: string; appSecret?: string } | null;
+  const appId = body?.appId?.trim();
+  const appSecret = body?.appSecret?.trim();
+  if (!appId || !appSecret) return c.json({ error: 'App ID 和 App Secret 都不能为空' }, 400);
+  const error = await saveFeishuCredentials({ appId, appSecret });
+  if (error) return c.json({ error }, 400);
+  return c.json({ ok: true });
 });
 
 // 静态托管前端构建产物（SPA fallback 到 index.html）

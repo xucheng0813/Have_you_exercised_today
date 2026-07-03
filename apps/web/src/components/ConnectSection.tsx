@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState, type FormEvent } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import QRCode from 'qrcode';
 import { api } from '../api';
 
@@ -18,7 +18,40 @@ function FeishuQR({ appId }: { appId: string }) {
     }).then(setSrc);
   }, [appId]);
   if (!src) return null;
-  return <img className="feishu-qr" src={src} alt="飞书机器人二维码" width={176} height={176} />;
+  return <img className="feishu-qr" src={src} alt="飞书机器人二维码" width={148} height={148} />;
+}
+
+/** 一次性配置：粘贴自建应用凭证，保存即校验并热启动长连接 */
+function FeishuSetupForm() {
+  const queryClient = useQueryClient();
+  const [appId, setAppId] = useState('');
+  const [appSecret, setAppSecret] = useState('');
+  const save = useMutation({
+    mutationFn: () => api.saveFeishu(appId.trim(), appSecret.trim()),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['setup'] }),
+  });
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (appId.trim() && appSecret.trim()) save.mutate();
+  };
+  return (
+    <form className="feishu-setup" onSubmit={submit}>
+      <p className="connect-text">
+        一次性配置：在
+        <a href="https://open.feishu.cn" target="_blank" rel="noreferrer">飞书开放平台</a>
+        创建自建应用（权限开 <code>im:message</code> 收发，事件订阅选「长连接」并添加接收消息事件，发布），
+        把凭证粘贴到这里。保存即生效，之后所有人扫码即用。
+      </p>
+      <input value={appId} placeholder="App ID（cli_ 开头）" aria-label="App ID"
+        onChange={(e) => setAppId(e.target.value)} />
+      <input value={appSecret} type="password" placeholder="App Secret" aria-label="App Secret"
+        onChange={(e) => setAppSecret(e.target.value)} />
+      <button type="submit" className="btn-primary sm" disabled={save.isPending || !appId.trim() || !appSecret.trim()}>
+        {save.isPending ? '校验中…' : '保存并连接'}
+      </button>
+      {save.isError && <p className="form-error">{(save.error as Error).message}</p>}
+    </form>
+  );
 }
 
 export function ConnectSection() {
@@ -57,10 +90,7 @@ export function ConnectSection() {
               <FeishuQR appId={feishu.appId} />
             </>
           ) : (
-            <p className="connect-text">
-              在飞书开放平台创建自建应用，开通消息权限并选择「长连接接收事件」（无需公网地址），
-              把 App ID / Secret 填入 .env 后重启服务，这里就会出现绑定二维码。
-            </p>
+            <FeishuSetupForm />
           )}
       </div>
       <div className="card connect-card">

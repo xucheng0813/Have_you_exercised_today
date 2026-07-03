@@ -1,7 +1,7 @@
 import * as Lark from '@larksuiteoapi/node-sdk';
 import { categoryOf } from '@fitness/shared';
 import { env } from '../env.js';
-import { getOrCreateUserByOpenId, insertCheckin, renameUser } from '../db.js';
+import { getOrCreateUserByOpenId, getSetting, insertCheckin, renameUser, setSetting } from '../db.js';
 import { computeStats } from '../stats.js';
 import { todayStr } from '../dates.js';
 import { parseCheckinMessage } from '../agent/deepseek.js';
@@ -15,6 +15,46 @@ const HELP_TEXT = [
 ].join('\n');
 
 let client: Lark.Client | null = null;
+let running = false;
+
+export interface FeishuCredentials {
+  appId: string;
+  appSecret: string;
+}
+
+/** 凭证来源：网页保存的（SQLite settings）优先，其次 .env */
+export function feishuCredentials(): FeishuCredentials | null {
+  const dbAppId = getSetting('feishu_app_id');
+  const dbSecret = getSetting('feishu_app_secret');
+  if (dbAppId && dbSecret) return { appId: dbAppId, appSecret: dbSecret };
+  if (env.feishu.enabled) return { appId: env.feishu.appId, appSecret: env.feishu.appSecret };
+  return null;
+}
+
+export function isFeishuRunning(): boolean {
+  return running;
+}
+
+/** 校验凭证（直接找飞书换 tenant_access_token），失败时返回错误信息 */
+export async function verifyFeishuCredentials(creds: FeishuCredentials): Promise<string | null> {
+  const res = await fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ app_id: creds.appId, app_secret: creds.appSecret }),
+  });
+  const body = (await res.json()) as { code: number; msg: string };
+  return body.code === 0 ? null : `飞书校验失败：${body.msg}（code ${body.code}）`;
+}
+
+/** 网页提交凭证：校验 → 存库 → 热启动长连接 */
+export async function saveFeishuCredentials(creds: FeishuCredentials): Promise<string | null> {
+  const error = await verifyFeishuCredentials(creds);
+  if (error) return error;
+  setSetting('feishu_app_id', creds.appId);
+  setSetting('feishu_app_secret', creds.appSecret);
+  startFeishu();
+  return null;
+}
 
 /** 主动给某个飞书用户发消息（提醒、周报用） */
 export async function sendTextToOpenId(openId: string, text: string): Promise<boolean> {
@@ -122,22 +162,25 @@ async function handleMessage(data: {
   await reply(`✅ 已记录：${detail}\n🔥 连续打卡 ${s.streak} 天，本周 ${s.week.days}/${s.week.goal} 次，稳住！`);
 }
 
-/** 启动飞书长连接（参考 multica：WebSocket 事件订阅，无需公网回调）。未配置时静默跳过。 */
+/** 启动飞书长连接（参考 multica：WebSocket 事件订阅，无需公网回调）。未配置时静默跳过，可在网页保存凭证后再次调用热启动。 */
 export function startFeishu(): void {
-  if (!env.feishu.enabled) {
-    console.log('[feishu] 未配置 FEISHU_APP_ID/SECRET，跳过飞书接入');
+  const creds = feishuCredentials();
+  if (!creds) {
+    console.log('[feishu] 未配置凭证，跳过飞书接入（可稍后在网页「接入」卡片里填写）');
     return;
   }
+  if (running) return;
+  running = true;
 
   client = new Lark.Client({
-    appId: env.feishu.appId,
-    appSecret: env.feishu.appSecret,
+    appId: creds.appId,
+    appSecret: creds.appSecret,
     domain: Lark.Domain.Feishu,
   });
 
   const wsClient = new Lark.WSClient({
-    appId: env.feishu.appId,
-    appSecret: env.feishu.appSecret,
+    appId: creds.appId,
+    appSecret: creds.appSecret,
     domain: Lark.Domain.Feishu,
     loggerLevel: Lark.LoggerLevel.info,
   });

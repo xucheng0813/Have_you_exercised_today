@@ -35,7 +35,24 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
     UNIQUE (user_id, week_start)
   );
+
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
 `);
+
+export function getSetting(key: string): string | null {
+  const row = db.prepare(`SELECT value FROM settings WHERE key = ?`).get(key) as { value: string } | undefined;
+  return row?.value ?? null;
+}
+
+export function setSetting(key: string, value: string): void {
+  db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value`).run(
+    key,
+    value
+  );
+}
 
 /** 保证 id=1 的默认用户存在（网页端无飞书时也能用） */
 db.prepare(`INSERT OR IGNORE INTO users (id, name) VALUES (1, ?)`).run(env.userName);

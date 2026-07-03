@@ -190,6 +190,16 @@ button { font: inherit; cursor: pointer; }
 .connect-text { font-size: 13px; color: var(--muted); letter-spacing: -0.12px; line-height: 1.55; margin: 0; }
 .feishu-qr { margin: 14px auto 2px; display: block; border: 1px solid var(--divider); border-radius: 11px; width: 148px; height: 148px; }
 
+.feishu-setup { display: flex; flex-direction: column; gap: 10px; }
+.feishu-setup .connect-text a { color: var(--blue); text-decoration: none; margin: 0 2px; }
+.feishu-setup code { font-family: var(--mono); font-size: 0.9em; background: var(--parchment); padding: 0 5px; border-radius: 4px; }
+.feishu-setup input {
+  font: inherit; font-size: 13px; padding: 8px 12px; color: var(--ink);
+  border: 1px solid var(--hairline); border-radius: 10px; background: var(--pearl);
+}
+.feishu-setup input:focus { outline: none; border-color: var(--blue-focus); background: var(--white); }
+.feishu-setup .btn-primary { align-self: flex-start; }
+
 .foot { font-size: 12px; color: var(--muted); text-align: center; letter-spacing: -0.12px; padding: 24px 0 0; }
 
 /* ---------- 补卡弹窗 ---------- */
