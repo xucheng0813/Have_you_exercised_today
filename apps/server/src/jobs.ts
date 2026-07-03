@@ -3,7 +3,7 @@ import { env } from './env.js';
 import { addDays, mondayOf, todayStr } from './dates.js';
 import { latestReport, listCheckins, listUsers, saveReport, usersWithFeishu } from './db.js';
 import { computeStats } from './stats.js';
-import { generateWeeklyReport } from './agent/deepseek.js';
+import { deepseekEnabled, generateWeeklyReport } from './agent/deepseek.js';
 import { sendTextToOpenId } from './feishu/index.js';
 
 /** 为单个用户生成并保存上一周的 AI 周报（DeepSeek 未配置时返回 null） */
@@ -55,7 +55,7 @@ export function startJobs(): void {
 
   // 兜底：启动时补生成缺失的上周周报（只补有打卡记录的用户）
   void (async () => {
-    if (!env.deepseek.enabled) return;
+    if (!deepseekEnabled()) return;
     const lastMonday = addDays(mondayOf(todayStr()), -7);
     for (const user of listUsers()) {
       if (latestReport(user.id)?.weekStart === lastMonday) continue;

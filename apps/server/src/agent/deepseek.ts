@@ -1,11 +1,46 @@
 import OpenAI from 'openai';
 import { REST_ACTIVITY, type Activity, type Checkin, type ParsedCheckin } from '@fitness/shared';
 import { env } from '../env.js';
+import { getSetting, setSetting } from '../db.js';
 
 // OpenAI 兼容格式，见 https://api-docs.deepseek.com/zh-cn/
-const client = env.deepseek.enabled
-  ? new OpenAI({ apiKey: env.deepseek.apiKey, baseURL: 'https://api.deepseek.com' })
-  : null;
+const BASE_URL = 'https://api.deepseek.com';
+
+/** key 来源：网页保存的（SQLite settings）优先，其次 .env */
+function apiKey(): string | null {
+  return getSetting('deepseek_api_key') ?? (env.deepseek.apiKey || null);
+}
+
+export function deepseekModel(): string {
+  return getSetting('deepseek_model') ?? env.deepseek.model;
+}
+
+export function deepseekEnabled(): boolean {
+  return apiKey() !== null;
+}
+
+let cached: { key: string; client: OpenAI } | null = null;
+function getClient(): OpenAI | null {
+  const key = apiKey();
+  if (!key) return null;
+  if (cached?.key !== key) cached = { key, client: new OpenAI({ apiKey: key, baseURL: BASE_URL }) };
+  return cached.client;
+}
+
+/** 校验 key（拉一次模型列表），失败时返回错误信息 */
+export async function verifyDeepseekKey(key: string): Promise<string | null> {
+  const res = await fetch(`${BASE_URL}/models`, { headers: { Authorization: `Bearer ${key}` } });
+  if (res.ok) return null;
+  return `DeepSeek 校验失败（HTTP ${res.status}）：key 无效或已过期`;
+}
+
+/** 网页提交 key：校验 → 存库，立即生效 */
+export async function saveDeepseekKey(key: string): Promise<string | null> {
+  const error = await verifyDeepseekKey(key);
+  if (error) return error;
+  setSetting('deepseek_api_key', key);
+  return null;
+}
 
 // JSON Output 模式要求 prompt 中出现 "json" 字样，并显式给出格式示例
 const PARSE_SYSTEM_PROMPT = `你是健身打卡记录解析器。用户发来一条消息，判断是否为运动打卡，并输出 JSON：
@@ -25,10 +60,11 @@ function sanitizeActivity(value: unknown): Activity {
 
 /** DeepSeek 解析；未配置 key 或调用失败时降级为正则解析 */
 export async function parseCheckinMessage(text: string): Promise<ParsedCheckin> {
+  const client = getClient();
   if (client) {
     try {
       const res = await client.chat.completions.create({
-        model: env.deepseek.model,
+        model: deepseekModel(),
         messages: [
           { role: 'system', content: PARSE_SYSTEM_PROMPT },
           { role: 'user', content: text },
@@ -100,6 +136,7 @@ const REPORT_SYSTEM_PROMPT = `你是一位务实的健身教练。根据用户�
 
 /** 生成上周训练周报；未配置 DeepSeek 时返回 null */
 export async function generateWeeklyReport(weekStart: string, checkins: Checkin[]): Promise<string | null> {
+  const client = getClient();
   if (!client) return null;
   const lines =
     checkins.length === 0
@@ -108,7 +145,7 @@ export async function generateWeeklyReport(weekStart: string, checkins: Checkin[
           .map((c) => `${c.date} ${c.activity}${c.durationMin ? ` ${c.durationMin}分钟` : ''}${c.note ? `（${c.note}）` : ''}`)
           .join('\n');
   const res = await client.chat.completions.create({
-    model: env.deepseek.model,
+    model: deepseekModel(),
     messages: [
       { role: 'system', content: REPORT_SYSTEM_PROMPT },
       { role: 'user', content: `${weekStart} 起的一周打卡记录：\n${lines}` },

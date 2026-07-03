@@ -21,6 +21,35 @@ function FeishuQR({ appId }: { appId: string }) {
   return <img className="feishu-qr" src={src} alt="飞书机器人二维码" width={148} height={148} />;
 }
 
+/** 粘贴 DeepSeek key，保存即校验并生效（存本地 SQLite） */
+function DeepseekSetupForm() {
+  const queryClient = useQueryClient();
+  const [apiKey, setApiKey] = useState('');
+  const save = useMutation({
+    mutationFn: () => api.saveDeepseek(apiKey.trim()),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['setup'] }),
+  });
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (apiKey.trim()) save.mutate();
+  };
+  return (
+    <form className="feishu-setup" onSubmit={submit}>
+      <p className="connect-text">
+        当前用内置规则解析消息，只认常见运动。在
+        <a href="https://platform.deepseek.com" target="_blank" rel="noreferrer">platform.deepseek.com</a>
+        创建 API key 粘贴到这里，任意运动都能识别，并解锁每周 AI 教练点评。
+      </p>
+      <input value={apiKey} type="password" placeholder="API key（sk- 开头）" aria-label="DeepSeek API key"
+        onChange={(e) => setApiKey(e.target.value)} />
+      <button type="submit" className="btn-primary sm" disabled={save.isPending || !apiKey.trim()}>
+        {save.isPending ? '校验中…' : '保存并启用'}
+      </button>
+      {save.isError && <p className="form-error">{(save.error as Error).message}</p>}
+    </form>
+  );
+}
+
 /** 一次性配置：粘贴自建应用凭证，保存即校验并热启动长连接 */
 function FeishuSetupForm() {
   const queryClient = useQueryClient();
@@ -108,10 +137,7 @@ export function ConnectSection() {
               每周一自动生成教练点评。
             </p>
           ) : (
-            <p className="connect-text">
-              当前用内置规则解析消息，只认常见运动。把 DEEPSEEK_API_KEY 填入 .env
-              后，任意运动都能识别，并解锁每周 AI 教练点评。
-            </p>
+            <DeepseekSetupForm />
           )}
       </div>
     </>

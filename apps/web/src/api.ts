@@ -28,4 +28,5 @@ export const api = {
   setup: () => request<SetupStatus>('/api/setup'),
   saveFeishu: (appId: string, appSecret: string) =>
     request<{ ok: boolean }>('/api/setup/feishu', post({ appId, appSecret })),
+  saveDeepseek: (apiKey: string) => request<{ ok: boolean }>('/api/setup/deepseek', post({ apiKey })),
 };

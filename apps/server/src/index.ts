@@ -18,6 +18,7 @@ import {
 } from './db.js';
 import { computeStats } from './stats.js';
 import { addDays, isValidDateStr, todayStr } from './dates.js';
+import { deepseekEnabled, deepseekModel, saveDeepseekKey } from './agent/deepseek.js';
 import { feishuCredentials, saveFeishuCredentials, startFeishu } from './feishu/index.js';
 import { runWeeklyReport, startJobs } from './jobs.js';
 
@@ -99,7 +100,7 @@ app.get('/api/reports/latest', (c) => {
 });
 
 app.post('/api/reports/generate', async (c) => {
-  if (!env.deepseek.enabled) return c.json({ error: '未配置 DEEPSEEK_API_KEY' }, 400);
+  if (!deepseekEnabled()) return c.json({ error: '未配置 DeepSeek API key' }, 400);
   const userId = resolveUserId(c.req.query('userId'));
   if (userId === null) return c.json({ error: '用户不存在' }, 404);
   const content = await runWeeklyReport(userId);
@@ -114,7 +115,7 @@ app.get('/api/setup', (c) => {
       boundUsers: usersWithFeishu().length,
       appId: creds?.appId ?? null,
     },
-    deepseek: { configured: env.deepseek.enabled, model: env.deepseek.model },
+    deepseek: { configured: deepseekEnabled(), model: deepseekModel() },
   };
   return c.json(status);
 });
@@ -126,6 +127,16 @@ app.post('/api/setup/feishu', async (c) => {
   const appSecret = body?.appSecret?.trim();
   if (!appId || !appSecret) return c.json({ error: 'App ID 和 App Secret 都不能为空' }, 400);
   const error = await saveFeishuCredentials({ appId, appSecret });
+  if (error) return c.json({ error }, 400);
+  return c.json({ ok: true });
+});
+
+// 网页粘贴 DeepSeek key：校验 → 存 SQLite，立即生效
+app.post('/api/setup/deepseek', async (c) => {
+  const body = (await c.req.json().catch(() => null)) as { apiKey?: string } | null;
+  const key = body?.apiKey?.trim();
+  if (!key) return c.json({ error: 'API key 不能为空' }, 400);
+  const error = await saveDeepseekKey(key);
   if (error) return c.json({ error }, 400);
   return c.json({ ok: true });
 });
